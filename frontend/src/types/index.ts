@@ -7,7 +7,6 @@ export interface Position3D {
 
 export interface ObjectClass {
   id: string;
-  name: 'mug' | 'pan' | 'knife' | 'fire' | 'cutting_board';
   confidence: number;
 }
 

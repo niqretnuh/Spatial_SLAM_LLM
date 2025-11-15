@@ -15,6 +15,7 @@ import json
 from datetime import datetime
 import base64
 from io import BytesIO
+import dummy_data
 
 # Load environment variables
 load_dotenv()
@@ -67,49 +68,20 @@ class LLMChatResponse(BaseModel):
     objects: Optional[List[Dict[str, Any]]] = []
     timestamp: str
 
-# Mock object database (replace with real SLAM data later)
-MOCK_OBJECTS = [
-    {
-        "object_id": "mug_001",
-        "class": "mug",
-        "last_position": {"x": 0.5, "y": 1.2, "z": 0.3},
-        "last_seen_ts": "2025-11-15T10:30:00Z",
-        "zone_label": "kitchen_counter",
-        "relative_direction": "left",
-        "distance_m": 1.5
-    },
-    {
-        "object_id": "knife_001",
-        "class": "knife",
-        "last_position": {"x": -0.3, "y": 1.1, "z": 0.2},
-        "last_seen_ts": "2025-11-15T10:25:00Z",
-        "zone_label": "kitchen_drawer",
-        "relative_direction": "right",
-        "distance_m": 2.0
-    },
-    {
-        "object_id": "cutting_board_001",
-        "class": "cutting_board",
-        "last_position": {"x": 0.0, "y": 1.15, "z": 0.1},
-        "last_seen_ts": "2025-11-15T10:28:00Z",
-        "zone_label": "kitchen_counter",
-        "relative_direction": "center",
-        "distance_m": 1.2
-    }
-]
+# Mock CV pipeline data (replace with real SLAM data later)
+CV_PIPELINE_DATA = dummy_data.dummy_cv_results
 
 # Tool definitions for Claude
 TOOLS = [
     {
         "name": "get_object_location",
-        "description": "Find the last known location of an object by its class (type). Returns position, zone, and relative direction information.",
+        "description": "Find the location of a specific object type in the video tracking data. Returns the object's 3D coordinates (x, y, z in meters) and the frame/time it was detected.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "object_class": {
                     "type": "string",
-                    "description": "The class/type of object to find (e.g., 'mug', 'knife', 'pan', 'cutting_board')",
-                    "enum": ["mug", "pan", "knife", "fire", "cutting_board"]
+                    "description": "The type/label of object to search for (e.g., 'ladder', 'doorway', 'heavy_equipment', 'worker', 'hard_hat', 'overhead_shelf')"
                 }
             },
             "required": ["object_class"]
@@ -117,7 +89,7 @@ TOOLS = [
     },
     {
         "name": "list_all_objects",
-        "description": "Get a list of all objects currently tracked by the SLAM system with their locations.",
+        "description": "Get a complete list of all objects detected across all frames in the video, including their labels, coordinates, and timestamps. Use this to understand what objects are present in the scene.",
         "input_schema": {
             "type": "object",
             "properties": {}
@@ -127,29 +99,61 @@ TOOLS = [
 
 # Tool execution functions
 def execute_get_object_location(object_class: str) -> Dict[str, Any]:
-    """Find object by class in the mock database"""
-    for obj in MOCK_OBJECTS:
-        if obj["class"].lower() == object_class.lower():
-            return {
-                "found": True,
-                "object": obj,
-                "zone": obj.get("zone_label"),
-                "relative_direction": obj.get("relative_direction"),
-                "distance_m": obj.get("distance_m"),
-                "message": f"Found {object_class} in {obj.get('zone_label')} ({obj.get('relative_direction')} direction, ~{obj.get('distance_m')}m away)"
-            }
+    """Find object by class in the CV pipeline data"""
+    found_objects = []
+    
+    # Search through all frames for the object
+    for frame in CV_PIPELINE_DATA["frames"]:
+        for obj in frame["objects"]:
+            if obj["label"].lower() == object_class.lower():
+                found_objects.append({
+                    "frame_number": frame["frame_number"],
+                    "time": frame["time"],
+                    "object_id": obj["id"],
+                    "label": obj["label"],
+                    "coordinates": obj["xyz_coordinates"],
+                    "depth": obj["depth"],
+                    "confidence": obj["confidence"]
+                })
+    
+    if found_objects:
+        # Return the most recent occurrence (last frame)
+        latest = found_objects[-1]
+        return {
+            "found": True,
+            "object": latest,
+            "coordinates": latest["coordinates"],
+            "message": f"Found {object_class} at frame {latest['frame_number']} (t={latest['time']}s) at position x={latest['coordinates']['x']}m, y={latest['coordinates']['y']}m, z={latest['coordinates']['z']}m"
+        }
     
     return {
         "found": False,
-        "message": f"No {object_class} found in the current tracking system"
+        "message": f"No {object_class} found in the video tracking data"
     }
 
 def execute_list_all_objects() -> Dict[str, Any]:
-    """Return all tracked objects"""
+    """Return all tracked objects from all frames"""
+    all_objects = []
+    unique_labels = set()
+    
+    for frame in CV_PIPELINE_DATA["frames"]:
+        for obj in frame["objects"]:
+            unique_labels.add(obj["label"])
+            all_objects.append({
+                "frame_number": frame["frame_number"],
+                "time": frame["time"],
+                "object_id": obj["id"],
+                "label": obj["label"],
+                "coordinates": obj["xyz_coordinates"],
+                "depth": obj["depth"]
+            })
+    
     return {
-        "objects": MOCK_OBJECTS,
-        "count": len(MOCK_OBJECTS),
-        "message": f"Currently tracking {len(MOCK_OBJECTS)} objects"
+        "objects": all_objects,
+        "unique_objects": list(unique_labels),
+        "total_detections": len(all_objects),
+        "unique_count": len(unique_labels),
+        "message": f"Currently tracking {len(unique_labels)} unique object types across {len(CV_PIPELINE_DATA['frames'])} frames"
     }
 
 def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> Any:
@@ -231,22 +235,23 @@ async def chat_with_llm(request: LLMChatRequest):
             "content": current_message_content
         })
         
-        # Enhanced system prompt for spatial awareness
-        system_prompt = """You are a helpful assistant integrated with a spatial SLAM 
-        (Simultaneous Localization and Mapping) system. when user asks a spatial question about their
-        environment, you have access to:
-        - Frame-by-frame object tracking data
-        - 3D coordinates (x, y, z) for each detected object
-        - Object names and their positions over time
+        # Enhanced system prompt for spatial awareness and safety analysis
+        system_prompt = """You are a safety analysis assistant with access to a 3D spatial tracking system.
+        You can analyze workplace environments for OSHA compliance and safety hazards.
         
-        When responding:
-        1. First analyze any spatial data provided in the current context
-        2. Use the get_object_location tool to find specific objects and their location in the 3d cloud space
-        3. Use the list_all_objects tool to see all tracked objects
-        4. Consider object trajectories, proximity to other objects, and changes over time
-        5. Provide clear, natural language responses about where objects are located
-
-        Always be helpful, concise, and give short instructional responses"""
+        You have access to:
+        - Frame-by-frame object tracking from video with 3D coordinates (x, y, z in meters)
+        - Object labels (e.g., ladder, doorway, heavy_equipment, overhead_shelf, worker, hard_hat)
+        - Spatial relationships between objects
+        
+        2. Use get_object_location to find specific objects and their coordinates
+        3. Analyze spatial relationships: calculate distances, check clearances, identify hazards
+        4. Consider OSHA regulations for construction/workplace safety
+        
+        
+        
+        Provide specific, actionable safety insights with measurements and OSHA citations when applicable.
+        your output should be"""
 
         # Call Claude API with tools
         tool_calls_made = []
@@ -563,8 +568,8 @@ async def chat_with_llm_multimodal(
 
 @app.get("/api/objects")
 async def get_all_objects():
-    """Get all tracked objects"""
-    return MOCK_OBJECTS
+    """Get all tracked objects from CV pipeline"""
+    return execute_list_all_objects()
 
 @app.get("/api/objects/last_location")
 async def get_object_last_location(object_class: str):
@@ -573,6 +578,11 @@ async def get_object_last_location(object_class: str):
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=result["message"])
     return result
+
+@app.get("/api/cv-data")
+async def get_cv_pipeline_data():
+    """Get raw CV pipeline data"""
+    return CV_PIPELINE_DATA
 
 if __name__ == "__main__":
     import uvicorn

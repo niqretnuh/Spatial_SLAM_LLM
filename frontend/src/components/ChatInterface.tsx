@@ -92,11 +92,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <p>👋 Hello! Ask me about object locations in your kitchen.</p>
             <div className="suggestions">
               <p>Try asking:</p>
-              <ul>
-                <li>"Where did I leave the mug?"</li>
-                <li>"Can you find my knife?"</li>
-                <li>"Where is the cutting board?"</li>
-              </ul>
             </div>
           </div>
         ) : (
