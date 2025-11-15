@@ -17,6 +17,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [showLiveVideo, setShowLiveVideo] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,12 @@ export const VideoInput: React.FC<VideoInputProps> = ({
   const initializeCamera = useCallback(async () => {
     try {
       setError(null);
+      
+      // Stop existing stream if any
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720, facingMode: 'user' },
         audio: true
@@ -45,18 +52,57 @@ export const VideoInput: React.FC<VideoInputProps> = ({
     }
   }, []);
 
+  // Toggle live video feed
+  const toggleLiveVideo = useCallback(async () => {
+    if (!showLiveVideo) {
+      // Turn on live video
+      setShowLiveVideo(true);
+      if (!mediaStream) {
+        await initializeCamera();
+      }
+    } else {
+      // Turn off live video
+      setShowLiveVideo(false);
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        setMediaStream(null);
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    }
+  }, [showLiveVideo, mediaStream, initializeCamera]); // Remove mediaStream dependency to prevent infinite re-renders
+
   // Start recording
   const startRecording = useCallback(async () => {
-    if (!mediaStream) {
-      await initializeCamera();
-      return;
-    }
-
     try {
       setError(null);
+      
+      // Ensure live video is turned on for recording
+      if (!showLiveVideo) {
+        setShowLiveVideo(true);
+      }
+      
+      // Ensure we have an active media stream
+      let currentStream = mediaStream;
+      
+      // Check if the current stream is active, if not reinitialize
+      if (!currentStream || !currentStream.active || currentStream.getTracks().every(track => track.readyState === 'ended')) {
+        await initializeCamera();
+        // Wait a bit for the stream to be set
+        await new Promise(resolve => setTimeout(resolve, 500));
+        currentStream = mediaStream;
+      }
+      
+      // Double check we have a valid stream after initialization
+      if (!currentStream || !currentStream.active) {
+        setError('Camera not available. Please allow camera permissions and try again.');
+        return;
+      }
+
       chunksRef.current = [];
       
-      const mediaRecorder = new MediaRecorder(mediaStream, {
+      const mediaRecorder = new MediaRecorder(currentStream, {
         mimeType: 'video/webm;codecs=vp9'
       });
       
@@ -69,7 +115,12 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
         setRecordedBlob(blob);
-        setPreviewUrl(URL.createObjectURL(blob));
+        // Clean up previous preview URL to prevent memory leaks
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        const newPreviewUrl = URL.createObjectURL(blob);
+        setPreviewUrl(newPreviewUrl);
         onVideoSelect?.(blob);
       };
       
@@ -80,7 +131,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       setError('Recording failed. Please try again.');
       console.error('Recording start error:', err);
     }
-  }, [mediaStream, initializeCamera, onVideoSelect]);
+  }, [mediaStream, initializeCamera, onVideoSelect, previewUrl]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -98,11 +149,34 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       setSelectedFile(file);
       setRecordedBlob(null);
       
+      // Clean up previous preview URL
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       onVideoSelect?.(file);
     }
-  }, [onVideoSelect]);
+  }, [onVideoSelect, previewUrl]);
+  
+  // Clear preview and return to live camera
+  const clearPreview = useCallback(() => {
+    setError(null);
+    setSelectedFile(null);
+    setRecordedBlob(null);
+    
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    
+    // Optionally turn on live video when clearing preview
+    if (!showLiveVideo) {
+      setShowLiveVideo(true);
+      initializeCamera();
+    }
+  }, [previewUrl, showLiveVideo, initializeCamera]);
 
   // Process video
   const processVideo = useCallback(async () => {
@@ -163,11 +237,6 @@ export const VideoInput: React.FC<VideoInputProps> = ({
     };
   }, [mediaStream, previewUrl]);
 
-  // Initialize camera on mount
-  useEffect(() => {
-    initializeCamera();
-  }, [initializeCamera]);
-
   return (
     <div className={`video-input ${className}`}>
       <div className="video-input-header">
@@ -183,13 +252,34 @@ export const VideoInput: React.FC<VideoInputProps> = ({
           </button>
           
           <button
+            className="action-btn live-video-btn"
+            onClick={toggleLiveVideo}
+            disabled={isProcessing}
+            aria-label={showLiveVideo ? 'Turn off live video' : 'Turn on live video'}
+          >
+            {showLiveVideo ? '📹 Turn Off Camera' : '📷 Turn On Camera'}
+          </button>
+          
+          <button
             className={`action-btn record-btn ${isRecording ? 'recording' : ''}`}
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={isProcessing}
+            disabled={isProcessing || !showLiveVideo}
             aria-label={isRecording ? 'Stop recording' : 'Start recording'}
           >
             {isRecording ? '⏹️ Stop' : '🔴 Record'}
           </button>
+          
+          {/* Clear preview button */}
+          {previewUrl && !isRecording && (
+            <button
+              className="action-btn clear-btn"
+              onClick={clearPreview}
+              disabled={isProcessing}
+              aria-label="Clear preview and return to live camera"
+            >
+              🔄 New Recording
+            </button>
+          )}
         </div>
       </div>
 
@@ -209,7 +299,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
           autoPlay
           muted
           playsInline
-          className={`live-video ${!mediaStream ? 'hidden' : ''}`}
+          className={`live-video ${!showLiveVideo || previewUrl ? 'hidden' : ''}`}
           aria-label="Live camera feed"
         />
 
@@ -255,9 +345,9 @@ export const VideoInput: React.FC<VideoInputProps> = ({
         )}
 
         {/* Empty state */}
-        {!mediaStream && !previewUrl && !error && (
+        {!showLiveVideo && !previewUrl && !error && (
           <div className="empty-state">
-            <p>🎥 Upload a video or start recording</p>
+            <p>🎥 Turn on camera to record or upload a video</p>
             <small>Supports MP4, MOV, AVI, WebM formats</small>
           </div>
         )}

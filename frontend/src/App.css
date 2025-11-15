@@ -96,6 +96,18 @@ body {
   grid-template-rows: 1fr;
 }
 
+/* Construction safety layout: 2 columns (Video | Chat) - Same proportions as accessibility */
+.main-grid.construction-safety-layout {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Fall prevention layout: 2 columns (Video | Chat) - Same proportions as accessibility */
+.main-grid.fall-prevention-layout {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr;
+}
+
 /* Non-accessibility layout: 1 column (Video only) when no chat */
 .main-grid.non-accessibility-layout {
   grid-template-columns: 1fr;
@@ -244,6 +256,18 @@ body {
     grid-template-rows: 2fr 1fr;
   }
   
+  /* Construction safety layout - stack chat below video on smaller screens */
+  .main-grid.construction-safety-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 2fr 1fr;
+  }
+  
+  /* Fall prevention layout - stack chat below video on smaller screens */
+  .main-grid.fall-prevention-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 2fr 1fr;
+  }
+  
   /* Non-accessibility layout with chat */
   .main-grid.non-accessibility-layout:has(.chat-section) {
     grid-template-columns: 2fr 1fr;
@@ -258,6 +282,8 @@ body {
 @media (max-width: 1200px) {
   .main-grid,
   .main-grid.accessibility-layout,
+  .main-grid.construction-safety-layout,
+  .main-grid.fall-prevention-layout,
   .main-grid.non-accessibility-layout {
     height: calc(100vh - 260px);
     gap: 15px;
@@ -271,6 +297,8 @@ body {
 @media (max-width: 768px) {
   .main-grid,
   .main-grid.accessibility-layout,
+  .main-grid.construction-safety-layout,
+  .main-grid.fall-prevention-layout,
   .main-grid.non-accessibility-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;

@@ -12,7 +12,7 @@ function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [cvData, setCvData] = useState<CVPipelineResult | null>(null);
   const [insights, setInsights] = useState<Record<string, LLMInsight[]> | null>(null);
-  const [selectedDomain, setSelectedDomain] = useState<string>('');
+  const [selectedDomain, setSelectedDomain] = useState<string>('accessibility');
   const [customDescription, setCustomDescription] = useState<string>('');
   const [isProcessingVideo, setIsProcessingVideo] = useState(false);
   const [processingStep, setProcessingStep] = useState<'upload' | 'cv' | 'insights' | 'complete'>('upload');
@@ -227,7 +227,7 @@ function App() {
       )}
 
       {/* Main Grid: Dynamic layout based on domain */}
-      <div className={`main-grid ${selectedDomain === 'accessibility' ? 'accessibility-layout' : 'non-accessibility-layout'}`}>
+      <div className={`main-grid ${selectedDomain === 'accessibility' ? 'accessibility-layout' : selectedDomain === 'construction_safety' ? 'construction-safety-layout' : selectedDomain === 'fall_prevention' ? 'fall-prevention-layout' : 'non-accessibility-layout'}`}>
         {/* Video Section */}
         <div className="video-section">
           <h2 className="section-title">📹 Video Analysis</h2>
