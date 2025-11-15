@@ -341,7 +341,7 @@ const handleExport = () => {
 ### Browser Compatibility
 
 The hook uses the Web Speech API:
-- **Speech Recognition**: Chrome, Edge, Safari (limited)
+- **Speech Recognition**: Chrome, Edge, Safari 
 - **Speech Synthesis**: All modern browsers
 
 Fallback behavior is included for unsupported browsers.
