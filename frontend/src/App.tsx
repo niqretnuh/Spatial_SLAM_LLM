@@ -1,19 +1,15 @@
 import { useState, useCallback } from 'react';
-import { VoiceInterface, VideoInput, VideoPlayer } from './components';
+import { VoiceInterface, VideoInput, AnnotationSlideshow } from './components';
 import { useLLMChat } from './hooks';
-import { apiClient } from './services/api';
-import { CVPipelineResult, VideoInsightsResponse, VideoDetectedObject, LLMInsight } from './types';
+import { AnnotationResponse } from './types';
 import './App.css';
 
 function App() {
 
   // Video processing state
-  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [cvData, setCvData] = useState<CVPipelineResult | null>(null);
-  const [insights, setInsights] = useState<Record<string, LLMInsight[]> | null>(null);
+  const [annotationData, setAnnotationData] = useState<AnnotationResponse | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>('accessibility');
-  const [customDescription, setCustomDescription] = useState<string>('');
   const [isProcessingVideo, setIsProcessingVideo] = useState(false);
   const [processingStep, setProcessingStep] = useState<'upload' | 'cv' | 'insights' | 'complete'>('upload');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
@@ -23,14 +19,11 @@ function App() {
     messages, 
     isLoading: isChatLoading, 
     error: chatError, 
-    sendMessage, 
-    clearHistory 
+    sendMessage
   } = useLLMChat({ video_id: currentVideoId });
 
   // Handle video selection
   const handleVideoSelect = useCallback((file: File | Blob) => {
-    setVideoBlob(file);
-    
     // Create URL for video player
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl);
@@ -39,152 +32,42 @@ function App() {
     setVideoUrl(newUrl);
     
     // Reset processing state
-    setCvData(null);
-    setInsights(null);
+    setAnnotationData(null);
     setCurrentVideoId(null);
     setProcessingStep('upload');
   }, [videoUrl]);
 
   // Handle domain selection
-  const handleDomainSelect = useCallback((domain: string, customDesc?: string) => {
+  const handleDomainSelect = useCallback((domain: string, _customDesc?: string) => {
     setSelectedDomain(domain);
-    if (customDesc) {
-      setCustomDescription(customDesc);
-    }
   }, []);
 
-  // Process video with CV pipeline and generate insights
-  const handleVideoProcess = useCallback(async (videoId: string) => {
-    if (!videoBlob || !selectedDomain) return;
-
+  // Handle video processing
+  const handleVideoProcess = useCallback((videoId: string) => {
+    setCurrentVideoId(videoId);
     setIsProcessingVideo(true);
-    setCurrentVideoId(videoId);
-    setProcessingStep('cv');
-
-    try {
-      // Step 1: Process video through CV pipeline
-      const processResponse = await apiClient.processVideo({
-        video: videoBlob,
-        domain: selectedDomain,
-        customDescription: selectedDomain === 'custom' ? customDescription : undefined,
-      });
-
-      if (!processResponse.success) {
-        throw new Error(processResponse.error || 'Video processing failed');
-      }
-
-      const finalVideoId = processResponse.data?.video_id || videoId;
-      setCurrentVideoId(finalVideoId);
-
-      // Step 2: Get CV results
-      const cvResponse = await apiClient.getCVResults(finalVideoId);
-      if (cvResponse.success && cvResponse.data) {
-        setCvData(cvResponse.data);
-      }
-
-      setProcessingStep('insights');
-
-      // Step 3: Generate insights
-      const insightsResponse = await apiClient.generateInsights({
-        video_id: finalVideoId,
-        domain: selectedDomain,
-        customDescription: selectedDomain === 'custom' ? customDescription : undefined,
-      });
-
-      if (insightsResponse.success && insightsResponse.data) {
-        setInsights(insightsResponse.data.insights);
-      }
-
-      setProcessingStep('complete');
-    } catch (error) {
-      console.error('Video processing error:', error);
-      // For demo purposes, create mock data
-      createMockData(videoId);
-    } finally {
-      setIsProcessingVideo(false);
-    }
-  }, [videoBlob, selectedDomain, customDescription]);
-
-  // Create mock data for demonstration
-  const createMockData = useCallback((videoId: string) => {
-    const mockCvData: CVPipelineResult = {
-      video_id: videoId,
-      fps: 30,
-      frames: [
-        {
-          time: 1.0,
-          objects: [
-            {
-              id: 'obj_1',
-              label: 'ladder',
-              bbox: [100, 100, 200, 300],
-              depth: 2.8,
-              confidence: 0.92
-            },
-            {
-              id: 'obj_2',
-              label: 'person',
-              bbox: [300, 150, 450, 400],
-              depth: 1.5,
-              confidence: 0.88
-            }
-          ]
-        },
-        {
-          time: 2.0,
-          objects: [
-            {
-              id: 'obj_3',
-              label: 'safety_cone',
-              bbox: [50, 350, 120, 450],
-              depth: 3.2,
-              confidence: 0.85
-            }
-          ]
-        }
-      ]
-    };
-
-    const mockInsights: Record<string, LLMInsight[]> = {
-      'frame_1000': [
-        {
-          object_id: 'obj_1',
-          insight: 'Ladder not properly secured at base. OSHA violation 1926.1053(b)(6).',
-          severity: 'high'
-        },
-        {
-          object_id: 'obj_2',
-          insight: 'Person working without hard hat in construction zone.',
-          severity: 'critical'
-        }
-      ],
-      'frame_2000': [
-        {
-          object_id: 'obj_3',
-          insight: 'Safety cone properly positioned to warn of hazard.',
-          severity: 'low'
-        }
-      ]
-    };
-
-    setCvData(mockCvData);
-    setInsights(mockInsights);
-    setCurrentVideoId(videoId);
     setProcessingStep('complete');
+    // Processing is handled in VideoInput component
   }, []);
 
-  // Handle object click in video player
-  const handleObjectClick = useCallback((object: VideoDetectedObject, insight?: LLMInsight) => {
-    if (insight) {
-      const message = `Tell me more about: ${insight.insight}`;
-      sendMessage(message);
-    }
-  }, [sendMessage]);
+  // Handle annotation response
+  const handleAnnotationResponse = useCallback((data: AnnotationResponse) => {
+    setAnnotationData(data);
+    setIsProcessingVideo(false);
+  }, []);
 
-  // Handle voice input
-  const handleVoiceTranscript = useCallback(async (transcript: string) => {
-    await sendMessage(transcript);
-  }, [sendMessage]);
+  // Handle restart analysis
+  const handleRestartAnalysis = useCallback(() => {
+    setAnnotationData(null);
+    setCurrentVideoId(null);
+    setIsProcessingVideo(false);
+    setProcessingStep('upload');
+    // Clear video URL to allow new video selection
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl);
+      setVideoUrl(null);
+    }
+  }, [videoUrl]);
 
   return (
     <div className="app-container">
@@ -231,21 +114,20 @@ function App() {
         <div className="video-section">
           <h2 className="section-title">📹 Video Analysis</h2>
           <div className="video-content">
-            <div className="video-input-wrapper">
-              <VideoInput 
-                onVideoSelect={handleVideoSelect}
-                onVideoProcess={handleVideoProcess}
-              />
-            </div>
-            
-            {/* Show video player when video is processed */}
-            {videoUrl && cvData && (
-              <div className="video-player-wrapper">
-                <VideoPlayer
-                  videoUrl={videoUrl}
-                  cvData={cvData}
-                  insights={insights}
-                  onObjectClick={handleObjectClick}
+            {/* Show video input when not processed, annotation slideshow when processed */}
+            {!annotationData ? (
+              <div className="video-input-wrapper">
+                <VideoInput 
+                  onVideoSelect={handleVideoSelect}
+                  onVideoProcess={handleVideoProcess}
+                  onAnnotationResponse={handleAnnotationResponse}
+                />
+              </div>
+            ) : (
+              <div className="annotation-slideshow-wrapper">
+                <AnnotationSlideshow 
+                  annotationData={annotationData}
+                  onRestart={handleRestartAnalysis}
                 />
               </div>
             )}
@@ -265,8 +147,8 @@ function App() {
               selectedDomain={selectedDomain}
               videoContext={currentVideoId ? {
                 videoId: currentVideoId,
-                hasCV: !!cvData,
-                hasInsights: !!insights
+                hasCV: false,
+                hasInsights: false
               } : undefined}
             />
           </div>
@@ -283,7 +165,7 @@ function App() {
                   <span className="step-icon">🎯</span>
                   <span>Computer Vision Analysis</span>
                 </div>
-                <div className={`step ${processingStep === 'insights' || processingStep === 'complete' ? 'completed' : processingStep === 'insights' ? 'current' : ''}`}>
+                <div className={`step ${processingStep === 'insights' || processingStep === 'complete' ? 'completed' : 'current'}`}>
                   <span className="step-icon">🧠</span>
                   <span>AI Insight Generation</span>
                 </div>

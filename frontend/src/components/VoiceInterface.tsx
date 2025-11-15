@@ -77,18 +77,18 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   isLoading = false,
   className = '',
   selectedDomain = '',
-  videoContext,
+  videoContext: _videoContext,
 }) => {
   const {
     isListening,
     transcript,
     interimTranscript,
-    confidence,
+    confidence: _confidence,
     isSpeaking,
     startListening,
     stopListening,
     speak,
-    stopSpeaking,
+    stopSpeaking: _stopSpeaking,
     clearTranscript,
     error,
     isSupported,
@@ -280,7 +280,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             <div key={index} className={`message ${message.role}`}>
               <div className="message-header">
                 <span className="message-role">
-                  {message.role === 'user' ? '👤 You' : '🔍 Jarvis'}
+                  {message.role === 'user' ? '👤 You' : '🔍 JARVIS'}
                 </span>
                 <span className="message-time">
                   {new Date(message.timestamp).toLocaleTimeString()}

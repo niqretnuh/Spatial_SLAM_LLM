@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiClient } from '@/services/api';
-import { VoiceRecognitionResult } from '@/types';
 import { downloadJSON } from './useObjectQuery';
 
 interface UseVoiceInterfaceResult {
