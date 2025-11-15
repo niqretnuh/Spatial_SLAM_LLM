@@ -181,15 +181,14 @@ async def chat_with_llm(request: LLMChatRequest):
         })
         
         # System prompt
-        system_prompt = """You are a helpful assistant integrated with a spatial SLAM (Simultaneous Localization and Mapping) system. 
-You can help users locate objects in their environment using the available tools.
+        system_prompt = """You are a helpful assistant integrated with a spatial SLAM 
+        (Simultaneous Localization and Mapping) system. when user asks a spatial question about their
+        environment, 
+        1. Use the get_object_location tool to find specific objects and their location in the 3d cloud space
+        2. Use the list_all_objects tool to see all tracked objects
+        3. Provide clear, natural language responses about where objects are located
 
-When a user asks about object locations:
-1. Use the get_object_location tool to find specific objects
-2. Use the list_all_objects tool to see all tracked objects
-3. Provide clear, natural language responses about where objects are located
-
-Always be helpful, concise, and spatial-aware in your responses."""
+        Always be helpful, concise, and give short intructional responses"""
 
         # Call Claude API with tools
         tool_calls_made = []
@@ -197,7 +196,7 @@ Always be helpful, concise, and spatial-aware in your responses."""
         
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1024,
+            max_tokens=1024,                # TODO: need to figure this out
             tools=TOOLS,
             system=system_prompt,
             messages=messages
