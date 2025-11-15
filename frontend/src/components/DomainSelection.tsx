@@ -17,7 +17,7 @@ interface DomainSelectionProps {
 const PREDEFINED_DOMAINS: DomainOption[] = [
   {
     id: 'accessibility',
-    name: 'Accessibility Analysis',
+    name: 'Low Vision Safety & Navigation Assistance',
     description: 'Low vision safety and navigation assistance',
     icon: '♿'
   },
@@ -26,12 +26,6 @@ const PREDEFINED_DOMAINS: DomainOption[] = [
     name: 'Construction Safety',
     description: 'OSHA compliance and workplace hazard detection',
     icon: '🏗️'
-  },
-  {
-    id: 'fall-prevention',
-    name: 'Fall Prevention',
-    description: 'Identify fall hazards and safety risks',
-    icon: '⚠️'
   },
   {
     id: 'general',

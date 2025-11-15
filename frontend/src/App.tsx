@@ -226,8 +226,8 @@ function App() {
         </div>
       )}
 
-      {/* Main Grid: Video, Chat, Voice */}
-      <div className="main-grid">
+      {/* Main Grid: Dynamic layout based on domain */}
+      <div className={`main-grid ${selectedDomain === 'accessibility' ? 'accessibility-layout' : 'non-accessibility-layout'}`}>
         {/* Video Section */}
         <div className="video-section">
           <h2 className="section-title">📹 Video Analysis</h2>
@@ -253,29 +253,33 @@ function App() {
           </div>
         </div>
 
-        {/* Chat Section */}
-        <div className="chat-section">
-          <h2 className="section-title">💬 AI Assistant</h2>
-          <ChatInterface 
-            messages={messages}
-            onSendMessage={sendMessage}
-            isLoading={isChatLoading}
-            videoContext={currentVideoId ? {
-              videoId: currentVideoId,
-              hasCV: !!cvData,
-              hasInsights: !!insights
-            } : undefined}
-          />
-        </div>
+        {/* Chat Section - Only show for non-accessibility domains */}
+        {selectedDomain !== 'accessibility' && selectedDomain !== '' && (
+          <div className="chat-section">
+            <h2 className="section-title">💬 AI Assistant</h2>
+            <ChatInterface 
+              messages={messages}
+              onSendMessage={sendMessage}
+              isLoading={isChatLoading}
+              videoContext={currentVideoId ? {
+                videoId: currentVideoId,
+                hasCV: !!cvData,
+                hasInsights: !!insights
+              } : undefined}
+            />
+          </div>
+        )}
         
-        {/* Voice Section */}
-        <div className="voice-section">
-          <h2 className="section-title">🎤 Voice Interface</h2>
-          <VoiceInterface
-            onTranscriptComplete={handleVoiceTranscript}
-            autoSend={true}
-          />
-        </div>
+        {/* Voice Section - Only show for accessibility domain */}
+        {selectedDomain === 'accessibility' && (
+          <div className="voice-section">
+            <h2 className="section-title">🎤 Voice Interface</h2>
+            <VoiceInterface
+              onTranscriptComplete={handleVoiceTranscript}
+              autoSend={true}
+            />
+          </div>
+        )}
       </div>
 
         {/* Processing status overlay */}
