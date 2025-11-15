@@ -18,6 +18,7 @@ interface UseVoiceInterfaceResult {
   stopListening: () => void;
   speak: (text: string) => Promise<void>;
   stopSpeaking: () => void;
+  clearTranscript: () => void;
   
   // State
   error: string | null;
@@ -93,7 +94,7 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
       }
 
       if (finalText) {
-        setTranscript((prev) => prev + ' ' + finalText);
+        setTranscript(finalText.trim()); // Set to the final result only, don't accumulate
       }
       setInterimTranscript(interimText);
     };
@@ -233,6 +234,12 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
     }
   }, []);
 
+  const clearTranscript = useCallback(() => {
+    setTranscript('');
+    setInterimTranscript('');
+    setConfidence(0);
+  }, []);
+
   const exportVoiceHistory = useCallback(() => {
     const historyData = {
       exportedAt: new Date().toISOString(),
@@ -256,6 +263,7 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
     stopListening,
     speak,
     stopSpeaking,
+    clearTranscript,
     error,
     isSupported,
     voiceHistory,

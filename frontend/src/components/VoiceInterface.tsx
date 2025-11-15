@@ -23,16 +23,33 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     stopListening,
     speak,
     stopSpeaking,
+    clearTranscript,
     error,
     isSupported,
     exportVoiceHistory,
   } = useVoiceInterface();
 
+  // Track if we've already sent this transcript to prevent duplicates
+  const [lastSentTranscript, setLastSentTranscript] = React.useState('');
+
   React.useEffect(() => {
-    if (transcript && !isListening && autoSend && onTranscriptComplete) {
+    if (
+      transcript && 
+      !isListening && 
+      autoSend && 
+      onTranscriptComplete &&
+      transcript.trim() !== '' &&
+      transcript !== lastSentTranscript
+    ) {
+      setLastSentTranscript(transcript);
       onTranscriptComplete(transcript);
+      // Clear the transcript after sending to prevent re-sending
+      setTimeout(() => {
+        clearTranscript();
+        setLastSentTranscript('');
+      }, 100);
     }
-  }, [transcript, isListening, autoSend, onTranscriptComplete]);
+  }, [transcript, isListening, autoSend, onTranscriptComplete, lastSentTranscript, clearTranscript]);
 
   if (!isSupported) {
     return (
