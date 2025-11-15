@@ -100,11 +100,29 @@ export interface ToolCall {
   result?: any;
 }
 
+export interface SpatialObject {
+  frame: number;
+  object_name: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface LLMChatRequest {
   message: string;
   context?: string[];
   userId?: string;
   video_id?: string; // For video-specific queries
+  spatial_data?: SpatialObject[]; // Frame-by-frame spatial data
+}
+
+export interface MultimodalChatRequest {
+  message: string;
+  spatial_data?: SpatialObject[];
+  context?: string[];
+  userId?: string;
+  video_id?: string;
+  images?: File[]; // Up to 4 images
 }
 
 export interface LLMChatResponse {

@@ -5,6 +5,8 @@ import {
   LLMChatRequest,
   LLMChatResponse,
   ToolCall,
+  SpatialObject,
+  MultimodalChatRequest,
 } from '@/types';
 import { downloadJSON } from './useObjectQuery';
 
@@ -12,6 +14,7 @@ interface UseLLMChatOptions {
   video_id?: string | null;
   context?: string[];
   userId?: string;
+  spatial_data?: SpatialObject[];
 }
 
 interface UseLLMChatResult {
@@ -22,7 +25,7 @@ interface UseLLMChatResult {
   lastResponse: LLMChatResponse | null;
   
   // Actions
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, images?: File[]) => Promise<void>;
   clearHistory: () => void;
   exportConversation: () => void;
   
@@ -42,13 +45,15 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatResult {
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const conversationIdRef = useRef<string>(generateConversationId());
 
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (message: string, images?: File[]) => {
     if (!message.trim()) {
       console.warn('Empty message, skipping');
       return;
     }
 
     console.log('Sending message to LLM:', message);
+    console.log('Images provided:', images?.length || 0);
+    console.log('Spatial data available:', options.spatial_data?.length || 0);
     setIsLoading(true);
     setError(null);
 
@@ -61,15 +66,35 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatResult {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const request: LLMChatRequest = {
-        message,
-        context: messages.map((m) => m.content),
-        userId: options.userId,
-        video_id: options.video_id || undefined,
-      };
+      let response;
+      
+      // Use multimodal endpoint if images or spatial data are provided
+      if (images && images.length > 0 || options.spatial_data && options.spatial_data.length > 0) {
+        const multimodalRequest: MultimodalChatRequest = {
+          message,
+          context: messages.map((m) => m.content),
+          userId: options.userId,
+          video_id: options.video_id || undefined,
+          spatial_data: options.spatial_data,
+          images: images,
+        };
 
-      console.log('API Request:', request);
-      const response = await apiClient.sendChatMessage(request);
+        console.log('API Multimodal Request:', { ...multimodalRequest, images: `${images?.length || 0} files` });
+        response = await apiClient.sendMultimodalChatMessage(multimodalRequest);
+      } else {
+        // Use standard text endpoint
+        const request: LLMChatRequest = {
+          message,
+          context: messages.map((m) => m.content),
+          userId: options.userId,
+          video_id: options.video_id || undefined,
+          spatial_data: options.spatial_data,
+        };
+
+        console.log('API Request:', request);
+        response = await apiClient.sendChatMessage(request);
+      }
+      
       console.log('API Response:', response);
 
       if (response.success && response.data) {
@@ -125,7 +150,7 @@ export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatResult {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, options.userId, options.video_id]);
+  }, [messages, options.userId, options.video_id, options.spatial_data]);
 
   const clearHistory = useCallback(() => {
     setMessages([]);
