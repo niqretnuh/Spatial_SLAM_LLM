@@ -4,12 +4,14 @@ import './VideoInput.css';
 interface VideoInputProps {
   onVideoSelect?: (file: File | Blob) => void;
   onVideoProcess?: (videoId: string) => void;
+  onAnnotationResponse?: (annotationData: any) => void;
   className?: string;
 }
 
 export const VideoInput: React.FC<VideoInputProps> = ({
   onVideoSelect,
   onVideoProcess,
+  onAnnotationResponse,
   className = ''
 }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -22,7 +24,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
   const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(true);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isInitializingCamera, setIsInitializingCamera] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -33,6 +35,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
   const initializeCamera = useCallback(async () => {
     try {
       setError(null);
+      setIsInitializingCamera(true);
       
       // Stop existing stream if any
       if (mediaStream) {
@@ -45,6 +48,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       });
       
       setMediaStream(stream);
+      setIsInitializingCamera(false);
       
       // Wait for next tick to ensure state is updated
       setTimeout(() => {
@@ -55,6 +59,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       
       return stream;
     } catch (err) {
+      setIsInitializingCamera(false);
       setError('Camera access denied. Please allow camera permissions.');
       console.error('Camera initialization error:', err);
       return null;
@@ -72,6 +77,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
     } else {
       // Turn off live video
       setShowLiveVideo(false);
+      setIsInitializingCamera(false); // Reset initialization state when turning off
       if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
         setMediaStream(null);
@@ -213,34 +219,33 @@ export const VideoInput: React.FC<VideoInputProps> = ({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('video', videoToProcess, 
-        selectedFile ? selectedFile.name : 'recorded-video.webm'
-      );
-
       // Simulate processing progress
       const progressInterval = setInterval(() => {
         setProcessingProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      // Mock API call for video processing
-      const response = await fetch('/api/process-video', {
-        method: 'POST',
-        body: formData
-      });
-
-      clearInterval(progressInterval);
+      // Simulate API delay and processing
+      await new Promise(resolve => setTimeout(resolve, 3000)); // 3 second delay
       
-      if (!response.ok) {
-        throw new Error('Video processing failed');
-      }
-
-      const result = await response.json();
+      clearInterval(progressInterval);
       setProcessingProgress(100);
+      
+      // Generate mock video ID
+      const mockVideoId = `video_${Date.now()}`;
+      
+      // Call the main video process callback
+      onVideoProcess?.(mockVideoId);
+      
+      // Call getAnnotationResponse (for now with mock data)
+      const { apiClient } = await import('../services/api');
+      const annotationResponse = await apiClient.getAnnotationResponse(mockVideoId);
+      
+      if (annotationResponse.success && annotationResponse.data) {
+        onAnnotationResponse?.(annotationResponse.data);
+      }
       
       setTimeout(() => {
         setIsProcessing(false);
-        onVideoProcess?.(result.video_id);
       }, 1000);
       
     } catch (err) {
@@ -248,7 +253,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       setError('Video processing failed. Please try again.');
       console.error('Video processing error:', err);
     }
-  }, [selectedFile, recordedBlob, onVideoProcess]);
+  }, [selectedFile, recordedBlob, onVideoProcess, onAnnotationResponse]);
 
   // Update video ref when media stream changes
   useEffect(() => {
@@ -384,8 +389,8 @@ export const VideoInput: React.FC<VideoInputProps> = ({
           </div>
         )}
         
-        {/* Loading state */}
-        {!mediaStream && !previewUrl && !error && showLivePreview && !isRecording && (
+        {/* Loading state - only show when actively initializing camera */}
+        {isInitializingCamera && (
           <div className="empty-state">
             <p>📷 Initializing camera...</p>
           </div>
@@ -418,58 +423,6 @@ export const VideoInput: React.FC<VideoInputProps> = ({
         >
           🚀 Process Video
         </button>
-      )}
-
-      {/* Confirmation Dialog */}
-      {showConfirmDialog && (
-        <div className="confirm-dialog-overlay">
-          <div className="confirm-dialog">
-            <h3>⚠️ Existing Video Detected</h3>
-            <p>You have an existing video. What would you like to do?</p>
-            
-            <div className="confirm-actions">
-              <button
-                className="confirm-btn upload-existing"
-                onClick={handleVideoUpload}
-              >
-                📤 Upload Existing Video
-              </button>
-              
-              <button
-                className="confirm-btn delete-record"
-                onClick={async () => {
-                  // Stop any existing media stream
-                  if (mediaStream) {
-                    mediaStream.getTracks().forEach(track => track.stop());
-                  }
-                  
-                  // Clear video state
-                  clearVideo();
-                  
-                  // Wait a bit for state to settle, then initialize and start recording
-                  setTimeout(async () => {
-                    const stream = await initializeCamera();
-                    if (stream) {
-                      // Small delay to ensure video element is ready
-                      setTimeout(() => {
-                        beginRecording(stream);
-                      }, 100);
-                    }
-                  }, 100);
-                }}
-              >
-                🗑️ Delete & Record New
-              </button>
-              
-              <button
-                className="confirm-btn cancel"
-                onClick={() => setShowConfirmDialog(false)}
-              >
-                ❌ Cancel
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -146,6 +146,30 @@ export interface VoiceSynthesisRequest {
   pitch?: number;
 }
 
+// Annotation types for slideshow
+export interface AnnotatedObject {
+  id: string;
+  label: string;
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2]
+  distance: number; // distance in meters
+  dimensions: {
+    length: number;
+    width: number;
+  };
+  callout: string; // LLM's response about the object
+}
+
+export interface AnnotatedFrame {
+  frameNumber: number;
+  imagePath: string;
+  objects: AnnotatedObject[];
+}
+
+export interface AnnotationResponse {
+  frames: AnnotatedFrame[];
+  totalFrames: number;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   success: boolean;

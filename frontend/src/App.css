@@ -184,6 +184,11 @@ body {
   min-height: 300px;
 }
 
+.annotation-slideshow-wrapper {
+  margin-top: 1.5rem;
+  flex-shrink: 0;
+}
+
 /* Hover effects for glass components */
 .video-section:hover,
 .chat-section:hover,

@@ -12,6 +12,7 @@ import {
   VideoInsightsResponse,
   CVPipelineResult,
   MultimodalChatRequest,
+  AnnotationResponse,
 } from '@/types';
 
 class ApiClient {
@@ -327,6 +328,137 @@ class ApiClient {
       return {
         success: true,
         data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  // Get annotation response with frame-by-frame object annotations
+  async getAnnotationResponse(_videoId?: string): Promise<ApiResponse<AnnotationResponse>> {
+    try {
+      // For now, return mock data with dummy images
+      // In the future, this would make a real API call: `/annotations/${videoId}`
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+      
+      const mockData: AnnotationResponse = {
+        frames: [
+          {
+            frameNumber: 1,
+            imagePath: '/src/dummy/frame1.png',
+            objects: [
+              {
+                id: 'obj_1_1',
+                label: 'ladder',
+                bbox: [100, 120, 280, 420],
+                distance: 2.8,
+                dimensions: { length: 3.2, width: 0.6 },
+                callout: 'Aluminum step ladder detected. Appears stable but positioned near electrical outlet - potential safety concern.'
+              },
+              {
+                id: 'obj_1_2', 
+                label: 'person',
+                bbox: [320, 80, 480, 380],
+                distance: 1.5,
+                dimensions: { length: 1.8, width: 0.5 },
+                callout: 'Worker in construction attire. No visible safety helmet - OSHA violation in construction zone.'
+              },
+              {
+                id: 'obj_1_3',
+                label: 'toolbox',
+                bbox: [50, 350, 150, 420],
+                distance: 3.1,
+                dimensions: { length: 0.8, width: 0.4 },
+                callout: 'Red metal toolbox properly secured. Contents appear organized and accessible.'
+              }
+            ]
+          },
+          {
+            frameNumber: 2,
+            imagePath: '/src/dummy/frame2.png',
+            objects: [
+              {
+                id: 'obj_2_1',
+                label: 'safety_cone',
+                bbox: [80, 280, 140, 400],
+                distance: 3.2,
+                dimensions: { length: 0.7, width: 0.7 },
+                callout: 'Orange safety cone positioned to mark hazard area. Proper placement for traffic control.'
+              },
+              {
+                id: 'obj_2_2',
+                label: 'excavator',
+                bbox: [200, 100, 500, 350],
+                distance: 8.5,
+                dimensions: { length: 6.2, width: 2.8 },
+                callout: 'Heavy machinery in operation. Ensure proper clearance and operator certification is current.'
+              }
+            ]
+          },
+          {
+            frameNumber: 3,
+            imagePath: '/src/dummy/frame3.png',
+            objects: [
+              {
+                id: 'obj_3_1',
+                label: 'hard_hat',
+                bbox: [180, 60, 220, 100],
+                distance: 2.1,
+                dimensions: { length: 0.3, width: 0.3 },
+                callout: 'Yellow hard hat detected. Properly worn and appears to meet safety standards.'
+              },
+              {
+                id: 'obj_3_2',
+                label: 'scaffolding',
+                bbox: [100, 50, 400, 350],
+                distance: 4.2,
+                dimensions: { length: 8.0, width: 2.0 },
+                callout: 'Multi-level scaffolding structure. Check stability connections and guard rail completeness.'
+              },
+              {
+                id: 'obj_3_3',
+                label: 'safety_vest',
+                bbox: [250, 180, 320, 280],
+                distance: 3.8,
+                dimensions: { length: 0.6, width: 0.5 },
+                callout: 'High-visibility safety vest worn correctly. Reflective strips clearly visible.'
+              }
+            ]
+          },
+          {
+            frameNumber: 4,
+            imagePath: '/src/dummy/frame4.png',
+            objects: [
+              {
+                id: 'obj_4_1',
+                label: 'power_tool',
+                bbox: [150, 200, 250, 280],
+                distance: 1.8,
+                dimensions: { length: 0.4, width: 0.15 },
+                callout: 'Electric drill in use. Cord management appears adequate, proper grip observed.'
+              },
+              {
+                id: 'obj_4_2',
+                label: 'warning_sign',
+                bbox: [320, 120, 420, 220],
+                distance: 5.5,
+                dimensions: { length: 0.8, width: 0.6 },
+                callout: 'Construction warning sign properly posted. Text legible from safe distance.'
+              }
+            ]
+          }
+        ],
+        totalFrames: 4
+      };
+
+      return {
+        success: true,
+        data: mockData,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
