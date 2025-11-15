@@ -11,6 +11,7 @@ import {
   VideoInsightsRequest,
   VideoInsightsResponse,
   CVPipelineResult,
+  MultimodalChatRequest,
 } from '@/types';
 
 class ApiClient {
@@ -85,6 +86,59 @@ class ApiClient {
       };
     } catch (error: any) {
       console.error('Chat API error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.detail || error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async sendMultimodalChatMessage(request: MultimodalChatRequest): Promise<ApiResponse<LLMChatResponse>> {
+    try {
+      console.log('Sending multimodal chat message:', request);
+      
+      // Create FormData for multipart/form-data
+      const formData = new FormData();
+      formData.append('message', request.message);
+      
+      if (request.spatial_data) {
+        formData.append('spatial_data', JSON.stringify(request.spatial_data));
+      }
+      
+      if (request.context) {
+        formData.append('context', JSON.stringify(request.context));
+      }
+      
+      if (request.userId) {
+        formData.append('userId', request.userId);
+      }
+      
+      if (request.video_id) {
+        formData.append('video_id', request.video_id);
+      }
+      
+      // Add up to 4 images
+      if (request.images && request.images.length > 0) {
+        request.images.slice(0, 4).forEach((image, index) => {
+          formData.append(`image${index + 1}`, image);
+        });
+      }
+      
+      const response = await this.client.post('/llm/chat-multimodal', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      console.log('Multimodal chat response:', response.data);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      console.error('Multimodal chat API error:', error);
       return {
         success: false,
         error: error.response?.data?.detail || error.message,

@@ -3,7 +3,7 @@ FastAPI Backend for Spatial SLAM LLM
 Handles Claude API integration with tool calling for object queries
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from loguru import logger
 import json
 from datetime import datetime
+import base64
+from io import BytesIO
 
 # Load environment variables
 load_dotenv()
@@ -39,10 +41,20 @@ if not ANTHROPIC_API_KEY:
 claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # Models
+class SpatialObject(BaseModel):
+    """Represents an object with spatial coordinates in a frame"""
+    frame: float  # Frame value (timestamp or frame number)
+    object_name: str
+    x: float
+    y: float
+    z: float
+
 class LLMChatRequest(BaseModel):
     message: str
     context: Optional[List[str]] = []
     userId: Optional[str] = None
+    video_id: Optional[str] = None
+    spatial_data: Optional[List[SpatialObject]] = []  # Structured spatial dictionary
 
 class ToolCall(BaseModel):
     name: str
@@ -149,6 +161,34 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> Any:
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
+def encode_image_to_base64(image_bytes: bytes) -> str:
+    """Convert image bytes to base64 string"""
+    return base64.b64encode(image_bytes).decode('utf-8')
+
+def format_spatial_data_for_llm(spatial_data: List[SpatialObject]) -> str:
+    """Format spatial data dictionary into a readable string for LLM"""
+    if not spatial_data:
+        return ""
+    
+    formatted = "## Spatial Data (Frame-by-Frame Object Tracking)\n\n"
+    
+    # Group by frame
+    frames = {}
+    for obj in spatial_data:
+        frame_key = obj.frame
+        if frame_key not in frames:
+            frames[frame_key] = []
+        frames[frame_key].append(obj)
+    
+    # Format each frame
+    for frame in sorted(frames.keys()):
+        formatted += f"**Frame {frame}:**\n"
+        for obj in frames[frame]:
+            formatted += f"  - {obj.object_name}: Position (x={obj.x:.2f}, y={obj.y:.2f}, z={obj.z:.2f})\n"
+        formatted += "\n"
+    
+    return formatted
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -157,10 +197,12 @@ async def health_check():
 @app.post("/api/llm/chat", response_model=LLMChatResponse)
 async def chat_with_llm(request: LLMChatRequest):
     """
-    Chat endpoint with Claude integration and tool calling
+    Chat endpoint with Claude integration, tool calling, and spatial data support
+    Accepts text query, conversation context, and optional spatial data
     """
     try:
         logger.info(f"Received chat request: {request.message}")
+        logger.info(f"Spatial data provided: {len(request.spatial_data) if request.spatial_data else 0} objects")
         
         # Build conversation history
         messages = []
@@ -174,21 +216,37 @@ async def chat_with_llm(request: LLMChatRequest):
                     "content": ctx
                 })
         
+        # Build current message content with spatial data if provided
+        current_message_content = request.message
+        
+        # Add spatial data to the message context
+        if request.spatial_data and len(request.spatial_data) > 0:
+            spatial_context = format_spatial_data_for_llm(request.spatial_data)
+            current_message_content = f"{current_message_content}\n\n{spatial_context}"
+            logger.info(f"Added spatial context with {len(request.spatial_data)} objects")
+        
         # Add current message
         messages.append({
             "role": "user",
-            "content": request.message
+            "content": current_message_content
         })
         
-        # System prompt
+        # Enhanced system prompt for spatial awareness
         system_prompt = """You are a helpful assistant integrated with a spatial SLAM 
         (Simultaneous Localization and Mapping) system. when user asks a spatial question about their
-        environment, 
-        1. Use the get_object_location tool to find specific objects and their location in the 3d cloud space
-        2. Use the list_all_objects tool to see all tracked objects
-        3. Provide clear, natural language responses about where objects are located
+        environment, you have access to:
+        - Frame-by-frame object tracking data
+        - 3D coordinates (x, y, z) for each detected object
+        - Object names and their positions over time
+        
+        When responding:
+        1. First analyze any spatial data provided in the current context
+        2. Use the get_object_location tool to find specific objects and their location in the 3d cloud space
+        3. Use the list_all_objects tool to see all tracked objects
+        4. Consider object trajectories, proximity to other objects, and changes over time
+        5. Provide clear, natural language responses about where objects are located
 
-        Always be helpful, concise, and give short intructional responses"""
+        Always be helpful, concise, and give short instructional responses"""
 
         # Call Claude API with tools
         tool_calls_made = []
@@ -275,6 +333,225 @@ async def chat_with_llm(request: LLMChatRequest):
         )
         
         logger.info(f"Returning response: {llm_response}")
+        return llm_response
+        
+    except anthropic.APIError as e:
+        logger.error(f"Claude API error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Claude API error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.post("/api/llm/chat-multimodal", response_model=LLMChatResponse)
+async def chat_with_llm_multimodal(
+    message: str = Form(...),
+    spatial_data: str = Form(None),  # JSON string of spatial data
+    context: str = Form(None),  # JSON string of context array
+    userId: str = Form(None),
+    video_id: str = Form(None),
+    image1: UploadFile = File(None),
+    image2: UploadFile = File(None),
+    image3: UploadFile = File(None),
+    image4: UploadFile = File(None),
+):
+    """
+    Multimodal chat endpoint with image support
+    Accepts up to 4 images along with text query and spatial data
+    """
+    try:
+        logger.info(f"Received multimodal chat request: {message}")
+        
+        # Parse spatial data
+        parsed_spatial_data = []
+        if spatial_data:
+            try:
+                spatial_list = json.loads(spatial_data)
+                parsed_spatial_data = [SpatialObject(**obj) for obj in spatial_list]
+                logger.info(f"Parsed {len(parsed_spatial_data)} spatial objects")
+            except Exception as e:
+                logger.error(f"Error parsing spatial data: {e}")
+        
+        # Parse context
+        parsed_context = []
+        if context:
+            try:
+                parsed_context = json.loads(context)
+            except Exception as e:
+                logger.error(f"Error parsing context: {e}")
+        
+        # Process images
+        image_files = [image1, image2, image3, image4]
+        images_base64 = []
+        
+        for img in image_files:
+            if img is not None:
+                try:
+                    image_bytes = await img.read()
+                    # Detect image type from filename
+                    image_type = "image/jpeg"
+                    if img.filename:
+                        if img.filename.lower().endswith('.png'):
+                            image_type = "image/png"
+                        elif img.filename.lower().endswith('.webp'):
+                            image_type = "image/webp"
+                        elif img.filename.lower().endswith('.gif'):
+                            image_type = "image/gif"
+                    
+                    images_base64.append({
+                        "data": encode_image_to_base64(image_bytes),
+                        "media_type": image_type
+                    })
+                    logger.info(f"Processed image: {img.filename} ({len(image_bytes)} bytes)")
+                except Exception as e:
+                    logger.error(f"Error processing image {img.filename}: {e}")
+        
+        logger.info(f"Total images processed: {len(images_base64)}")
+        
+        # Build conversation history
+        messages = []
+        
+        # Add context if provided
+        if parsed_context:
+            for i, ctx in enumerate(parsed_context):
+                role = "user" if i % 2 == 0 else "assistant"
+                messages.append({
+                    "role": role,
+                    "content": ctx
+                })
+        
+        # Build current message with images and spatial data
+        message_content = []
+        
+        # Add images first
+        for img_data in images_base64:
+            message_content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img_data["media_type"],
+                    "data": img_data["data"]
+                }
+            })
+        
+        # Add text with spatial data
+        text_content = message
+        if parsed_spatial_data:
+            spatial_context = format_spatial_data_for_llm(parsed_spatial_data)
+            text_content = f"{message}\n\n{spatial_context}"
+        
+        message_content.append({
+            "type": "text",
+            "text": text_content
+        })
+        
+        messages.append({
+            "role": "user",
+            "content": message_content
+        })
+        
+        # Enhanced system prompt for multimodal analysis
+        system_prompt = """You are a helpful assistant integrated with a spatial SLAM 
+        (Simultaneous Localization and Mapping) system. You have vision capabilities and can analyze images
+        along with spatial data.
+        
+        You have access to:
+        - Visual information from up to 4 images showing the environment
+        - Frame-by-frame object tracking data with 3D coordinates (x, y, z)
+        - Object names and their positions over time
+        
+        When responding:
+        1. Analyze the provided images to understand the visual context
+        2. Cross-reference visual information with the spatial data
+        3. Use tools (get_object_location, list_all_objects) when needed
+        4. Consider object trajectories, spatial relationships, and visual context
+        5. Provide clear, natural language responses about object locations and environment understanding
+
+        Always be helpful, concise, and give short instructional responses."""
+        
+        # Call Claude API with tools and multimodal content
+        tool_calls_made = []
+        objects_found = []
+        
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2048,  # Increased for multimodal responses
+            tools=TOOLS,
+            system=system_prompt,
+            messages=messages
+        )
+        
+        logger.info(f"Claude multimodal response received")
+        
+        # Process the response (same tool handling as before)
+        final_text = ""
+        
+        # Handle tool use
+        while response.stop_reason == "tool_use":
+            for content_block in response.content:
+                if content_block.type == "tool_use":
+                    tool_name = content_block.name
+                    tool_input = content_block.input
+                    tool_id = content_block.id
+                    
+                    logger.info(f"Tool call: {tool_name} with input: {tool_input}")
+                    
+                    # Execute the tool
+                    tool_result = execute_tool(tool_name, tool_input)
+                    
+                    # Track tool call
+                    tool_call = ToolCall(
+                        name=tool_name,
+                        parameters=tool_input,
+                        result=tool_result
+                    )
+                    tool_calls_made.append(tool_call)
+                    
+                    # Track objects if found
+                    if tool_result.get("found") and tool_result.get("object"):
+                        objects_found.append(tool_result["object"])
+                    elif tool_result.get("objects"):
+                        objects_found.extend(tool_result["objects"])
+                    
+                    # Continue conversation with tool result
+                    messages.append({
+                        "role": "assistant",
+                        "content": response.content
+                    })
+                    
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps(tool_result)
+                            }
+                        ]
+                    })
+                    
+                    # Get next response
+                    response = claude_client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=2048,
+                        tools=TOOLS,
+                        system=system_prompt,
+                        messages=messages
+                    )
+        
+        # Extract final text response
+        for content_block in response.content:
+            if hasattr(content_block, "text"):
+                final_text += content_block.text
+        
+        # Build response
+        llm_response = LLMChatResponse(
+            response=final_text,
+            toolCalls=tool_calls_made if tool_calls_made else None,
+            objects=objects_found if objects_found else None,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+        logger.info(f"Returning multimodal response")
         return llm_response
         
     except anthropic.APIError as e:
