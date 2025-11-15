@@ -1,0 +1,281 @@
+.object-visualization {
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.viz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.viz-header h2 {
+  margin: 0;
+  color: #212529;
+  font-size: 1.5rem;
+}
+
+.export-button {
+  padding: 0.5rem 1rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.export-button:hover {
+  background: #218838;
+}
+
+.query-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.query-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.object-select {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.object-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.query-button {
+  padding: 0.75rem 1.5rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.query-button:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.query-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.query-result {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border-radius: 6px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.query-result.found {
+  background: #d4edda;
+  border: 2px solid #c3e6cb;
+}
+
+.query-result.not-found {
+  background: #f8d7da;
+  border: 2px solid #f5c6cb;
+}
+
+.result-header {
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.query-result.found .result-header {
+  color: #155724;
+}
+
+.query-result.not-found .result-header {
+  color: #721c24;
+}
+
+.result-content p {
+  margin: 0 0 1rem 0;
+  line-height: 1.6;
+}
+
+.object-details {
+  background: white;
+  padding: 1rem;
+  border-radius: 4px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #495057;
+}
+
+.detail-value {
+  color: #212529;
+}
+
+.objects-grid h3 {
+  margin: 0 0 1.5rem 0;
+  color: #495057;
+  font-size: 1.25rem;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: #6c757d;
+  font-size: 1.1rem;
+}
+
+.error-state {
+  color: #dc3545;
+}
+
+.objects-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.object-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px solid #dee2e6;
+  transition: all 0.2s ease;
+}
+
+.object-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-2px);
+}
+
+.object-icon {
+  font-size: 3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.object-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.object-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #212529;
+  font-size: 1.1rem;
+  text-transform: capitalize;
+}
+
+.object-meta {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.zone-badge {
+  padding: 0.25rem 0.5rem;
+  background: #667eea;
+  color: white;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.object-position,
+.object-timestamp {
+  margin-top: 0.25rem;
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.export-object-button {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.export-object-button:hover {
+  background: #218838;
+  transform: scale(1.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .object-visualization {
+    padding: 1rem;
+  }
+
+  .query-controls {
+    flex-direction: column;
+  }
+
+  .objects-list {
+    grid-template-columns: 1fr;
+  }
+
+  .object-card {
+    padding: 1rem;
+  }
+
+  .object-icon {
+    font-size: 2.5rem;
+  }
+}
