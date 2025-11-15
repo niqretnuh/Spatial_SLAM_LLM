@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { VoiceInterface, ChatInterface, ObjectVisualization } from './components';
+import { useState } from 'react';
+import { VoiceInterface, ChatInterface } from './components';
 import { useSLAM } from './hooks';
 import './App.css';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'objects' | 'voice'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'voice'>('chat');
   const { session, isTracking, startSession, stopSession, isLoading, error } = useSLAM();
 
   const handleVoiceTranscript = async (transcript: string) => {
@@ -62,13 +62,6 @@ function App() {
           💬 Chat
         </button>
         <button
-          className={`nav-button ${activeTab === 'objects' ? 'active' : ''}`}
-          onClick={() => setActiveTab('objects')}
-          aria-label="Object visualization"
-        >
-          📦 Objects
-        </button>
-        <button
           className={`nav-button ${activeTab === 'voice' ? 'active' : ''}`}
           onClick={() => setActiveTab('voice')}
           aria-label="Voice interface"
@@ -80,7 +73,6 @@ function App() {
       <main className="app-main">
         <div className="main-content">
           {activeTab === 'chat' && <ChatInterface />}
-          {activeTab === 'objects' && <ObjectVisualization />}
           {activeTab === 'voice' && (
             <VoiceInterface
               onTranscriptComplete={handleVoiceTranscript}
