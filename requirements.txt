@@ -1,0 +1,42 @@
+# Minimal Requirements for Development/Testing
+# Use this for quick setup without SLAM and heavy ML dependencies
+
+# Core Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Basic Computer Vision (lighter than full opencv)
+numpy==1.24.3
+pillow==10.1.0
+
+# LLM Integration
+
+# Database (SQLite - no external DB needed)
+sqlalchemy==2.0.23
+
+# API & Networking
+httpx==0.25.2
+requests==2.31.0
+aiofiles==23.2.1
+
+# Audio Processing (Lightweight)
+gTTS==2.4.0
+
+# Utilities
+python-dotenv==1.0.0
+loguru==0.7.2
+pyyaml==6.0.1
+
+# CORS & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Development Tools
+black==23.11.0
