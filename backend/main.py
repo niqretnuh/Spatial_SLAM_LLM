@@ -23,8 +23,7 @@ app = FastAPI(title="Spatial SLAM LLM API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("FRONTEND_URL", "http://localhost:5173"),
-        "http://localhost:3000",
+        os.getenv("FRONTEND_URL", "http://localhost:3000"),
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -197,7 +196,7 @@ Always be helpful, concise, and spatial-aware in your responses."""
         objects_found = []
         
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=1024,
             tools=TOOLS,
             system=system_prompt,
@@ -256,7 +255,7 @@ Always be helpful, concise, and spatial-aware in your responses."""
                     
                     # Get next response
                     response = claude_client.messages.create(
-                        model="claude-3-5-sonnet-20241022",
+                        model="claude-sonnet-4-20250514",
                         max_tokens=1024,
                         tools=TOOLS,
                         system=system_prompt,

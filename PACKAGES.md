@@ -93,7 +93,7 @@ from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 response = client.chat.completions.create(
-    model="gpt-4",
+    model="claude-sonnet-4-5",
     messages=[{"role": "user", "content": "Where is my mug?"}],
     tools=[get_last_location_tool]
 )

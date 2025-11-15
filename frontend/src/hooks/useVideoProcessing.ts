@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/services/api';
-import { VideoProcessingResponse, CVPipelineResult, VideoInsightsResponse } from '@/types';
+import { CVPipelineResult, VideoInsightsResponse } from '@/types';
 
 interface UseVideoProcessingOptions {
   onProgress?: (step: 'upload' | 'cv' | 'insights' | 'complete') => void;
@@ -12,12 +12,36 @@ export const useVideoProcessing = (options: UseVideoProcessingOptions = {}) => {
   const [currentStep, setCurrentStep] = useState<'upload' | 'cv' | 'insights' | 'complete'>('upload');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+
+  const resetProcessing = useCallback(() => {
+    setIsProcessing(false);
+    setCurrentStep('upload');
+    setProgress(0);
+    setError(null);
+    setCurrentVideoId(null);
+  }, []);
 
   const processVideo = useCallback(async (
     videoBlob: Blob | File,
     domain: string,
     customDescription?: string
   ): Promise<string | null> => {
+    // Validate inputs
+    if (!videoBlob) {
+      const errorMsg = 'No video file provided';
+      setError(errorMsg);
+      options.onError?.(errorMsg);
+      return null;
+    }
+
+    if (!domain) {
+      const errorMsg = 'Please select a domain for analysis';
+      setError(errorMsg);
+      options.onError?.(errorMsg);
+      return null;
+    }
+
     setIsProcessing(true);
     setError(null);
     setCurrentStep('upload');
@@ -41,6 +65,7 @@ export const useVideoProcessing = (options: UseVideoProcessingOptions = {}) => {
         throw new Error('No video ID returned');
       }
 
+      setCurrentVideoId(videoId);
       setCurrentStep('cv');
       setProgress(30);
       options.onProgress?.('cv');
@@ -100,12 +125,24 @@ export const useVideoProcessing = (options: UseVideoProcessingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Processing failed';
       setError(errorMessage);
+      setCurrentStep('upload');
+      setProgress(0);
       options.onError?.(errorMessage);
+      console.error('Video processing error:', err);
       return null;
     } finally {
       setIsProcessing(false);
     }
   }, [options]);
+
+  const cancelProcessing = useCallback(() => {
+    if (isProcessing) {
+      setIsProcessing(false);
+      setError('Processing cancelled by user');
+      setCurrentStep('upload');
+      setProgress(0);
+    }
+  }, [isProcessing]);
 
   const getCVResults = useCallback(async (videoId: string): Promise<CVPipelineResult | null> => {
     try {
@@ -142,9 +179,12 @@ export const useVideoProcessing = (options: UseVideoProcessingOptions = {}) => {
     currentStep,
     progress,
     error,
+    currentVideoId,
     processVideo,
     getCVResults,
     getInsights,
     queryInsights,
+    resetProcessing,
+    cancelProcessing,
   };
 };
