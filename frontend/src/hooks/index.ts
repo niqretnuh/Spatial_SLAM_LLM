@@ -3,3 +3,4 @@ export { useObjectQuery } from './useObjectQuery';
 export { useLLMChat } from './useLLMChat';
 export { useVoiceInterface } from './useVoiceInterface';
 export { useVideoProcessing } from './useVideoProcessing';
+export { useAnnotationGeneration } from './useAnnotationGeneration';
