@@ -196,6 +196,67 @@ class ApiClient {
     }
   }
 
+  // SLAM Visualization
+  async getSlamVisualization(options?: {
+    etag?: string | null;
+    lastModified?: string | null;
+  }): Promise<ApiResponse<{
+    imageUrl?: string;
+    etag?: string;
+    lastModified?: string;
+    modified?: boolean;
+  }>> {
+    try {
+      const headers: Record<string, string> = {};
+      
+      // Add conditional request headers
+      if (options?.etag) {
+        headers['If-None-Match'] = options.etag;
+      }
+      if (options?.lastModified) {
+        headers['If-Modified-Since'] = options.lastModified;
+      }
+
+      const response = await this.client.get('/slam/visualization', {
+        headers,
+        responseType: 'blob',
+        validateStatus: (status) => status === 200 || status === 304,
+      });
+
+      // 304 Not Modified - no changes
+      if (response.status === 304) {
+        return {
+          success: true,
+          data: { modified: false },
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // 200 OK - new image data
+      const blob = response.data;
+      const imageUrl = URL.createObjectURL(blob);
+      const etag = response.headers['etag'] || null;
+      const lastModified = response.headers['last-modified'] || null;
+
+      return {
+        success: true,
+        data: {
+          imageUrl,
+          etag,
+          lastModified,
+          modified: true,
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
   // Health check
   async healthCheck(): Promise<boolean> {
     try {

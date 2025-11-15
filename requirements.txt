@@ -1,5 +1,5 @@
-# Minimal Requirements for Development/Testing
 # Use this for quick setup without SLAM and heavy ML dependencies
+# will create another with the SLAM + llm integration later
 
 # Core Web Framework
 fastapi==0.104.1
@@ -13,9 +13,6 @@ numpy==1.24.3
 pillow==10.1.0
 
 # LLM Integration
-
-# Database (SQLite - no external DB needed)
-sqlalchemy==2.0.23
 
 # API & Networking
 httpx==0.25.2
