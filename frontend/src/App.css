@@ -15,7 +15,7 @@ body {
 .app-container {
   min-height: 100vh;
   padding: 20px;
-  background: radial-gradient(ellipse at center, #1a1a2e 0%, #000000 70%);
+  background: radial-gradient(ellipse at center, #1a1a2e 0%, #000000 70%, #000000 100%);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -83,12 +83,33 @@ body {
 
 .main-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr;
   gap: 20px;
   height: calc(100vh - 280px);
   max-width: 1600px;
   margin: 0 auto;
+  transition: all 0.3s ease;
+}
+
+/* Accessibility layout: 2 columns (Video | Voice) - Chat is hidden */
+.main-grid.accessibility-layout {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Non-accessibility layout: 1 column (Video only) when no chat */
+.main-grid.non-accessibility-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* When chat is present in non-accessibility layout */
+.main-grid.non-accessibility-layout .chat-section {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.main-grid.non-accessibility-layout:has(.chat-section) {
+  grid-template-columns: 2fr 1fr;
 }
 
 .video-section {
@@ -217,19 +238,27 @@ body {
 
 /* Responsive design */
 @media (max-width: 1400px) {
-  .main-grid {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    height: calc(100vh - 280px);
+  /* Accessibility layout - stack voice below video on smaller screens */
+  .main-grid.accessibility-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 2fr 1fr;
   }
   
-  .voice-section {
-    grid-column: span 2;
+  /* Non-accessibility layout with chat */
+  .main-grid.non-accessibility-layout:has(.chat-section) {
+    grid-template-columns: 2fr 1fr;
+  }
+  
+  /* Non-accessibility layout without chat */
+  .main-grid.non-accessibility-layout:not(:has(.chat-section)) {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 1200px) {
-  .main-grid {
+  .main-grid,
+  .main-grid.accessibility-layout,
+  .main-grid.non-accessibility-layout {
     height: calc(100vh - 260px);
     gap: 15px;
   }
@@ -240,7 +269,9 @@ body {
 }
 
 @media (max-width: 768px) {
-  .main-grid {
+  .main-grid,
+  .main-grid.accessibility-layout,
+  .main-grid.non-accessibility-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     height: auto;
