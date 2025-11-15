@@ -7,7 +7,6 @@ export interface Position3D {
 
 export interface ObjectClass {
   id: string;
-  name: 'mug' | 'pan' | 'knife' | 'fire' | 'cutting_board';
   confidence: number;
 }
 
@@ -165,9 +164,37 @@ export interface AnnotatedFrame {
   objects: AnnotatedObject[];
 }
 
+// JSON Annotation types (from LLM analysis)
+export interface JSONAnnotation {
+  object_id: string;
+  object_label: string;
+  violation?: string;
+  concern?: string;
+  observation?: string;
+  severity?: 'critical' | 'high' | 'medium' | 'low';
+  osha_citation?: string;
+  measurements?: Record<string, number>;
+  recommendation?: string;
+  navigation_advice?: string;
+  note?: string;
+}
+
+export interface JSONAnnotatedFrame {
+  frame_number: number;
+  timestamp: number;
+  hazards?: JSONAnnotation[];
+  obstacles?: JSONAnnotation[];
+  annotations?: JSONAnnotation[];
+}
+
 export interface AnnotationResponse {
-  frames: AnnotatedFrame[];
-  totalFrames: number;
+  domain: string;
+  total_frames: number;
+  summary: Record<string, any>;
+  frames: JSONAnnotatedFrame[];
+  // Legacy support
+  legacyFrames?: AnnotatedFrame[];
+  totalFrames?: number;
 }
 
 // API Response wrapper
