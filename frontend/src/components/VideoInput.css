@@ -270,6 +270,115 @@
   }
 }
 
+/* Confirmation Dialog */
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 1rem;
+  color: #333;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.confirm-dialog p {
+  color: #666;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.confirm-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.confirm-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.confirm-btn.upload-existing {
+  background: linear-gradient(135deg, #28a745, #218838);
+  color: white;
+}
+
+.confirm-btn.upload-existing:hover {
+  background: linear-gradient(135deg, #218838, #1e7e34);
+}
+
+.confirm-btn.delete-record {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+}
+
+.confirm-btn.delete-record:hover {
+  background: linear-gradient(135deg, #c82333, #bd2130);
+}
+
+.confirm-btn.cancel {
+  background: #f8f9fa;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.confirm-btn.cancel:hover {
+  background: #e9ecef;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .video-input {
@@ -290,5 +399,18 @@
   .action-btn {
     flex: 1;
     text-align: center;
+  }
+
+  .confirm-dialog {
+    padding: 1.5rem;
+    width: 95%;
+  }
+
+  .confirm-dialog h3 {
+    font-size: 1.1rem;
+  }
+
+  .confirm-btn {
+    font-size: 0.9rem;
   }
 }
