@@ -13,6 +13,7 @@ numpy==1.24.3
 pillow==10.1.0
 
 # LLM Integration
+anthropic==0.34.2
 
 # API & Networking
 httpx==0.25.2

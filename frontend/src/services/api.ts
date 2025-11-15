@@ -16,10 +16,10 @@ import {
 class ApiClient {
   private client: AxiosInstance;
 
-  constructor(baseURL: string = '/api') {
+  constructor(baseURL: string = import.meta.env.VITE_API_URL || 'http://localhost:8000/api') {
     this.client = axios.create({
       baseURL,
-      timeout: 10000,
+      timeout: 30000, // Increased timeout for LLM responses
       headers: {
         'Content-Type': 'application/json',
       },
