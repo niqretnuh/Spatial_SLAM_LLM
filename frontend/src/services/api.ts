@@ -75,16 +75,19 @@ class ApiClient {
   // LLM Integration
   async sendChatMessage(request: LLMChatRequest): Promise<ApiResponse<LLMChatResponse>> {
     try {
+      console.log('Sending chat message:', request);
       const response = await this.client.post('/llm/chat', request);
+      console.log('Chat response:', response.data);
       return {
         success: true,
         data: response.data,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
+      console.error('Chat API error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.response?.data?.detail || error.message,
         timestamp: new Date().toISOString(),
       };
     }

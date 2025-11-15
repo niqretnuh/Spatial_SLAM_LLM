@@ -196,7 +196,7 @@ Always be helpful, concise, and spatial-aware in your responses."""
         objects_found = []
         
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=1024,
             tools=TOOLS,
             system=system_prompt,
@@ -255,7 +255,7 @@ Always be helpful, concise, and spatial-aware in your responses."""
                     
                     # Get next response
                     response = claude_client.messages.create(
-                        model="claude-3-5-sonnet-20241022",
+                        model="claude-sonnet-4-20250514",
                         max_tokens=1024,
                         tools=TOOLS,
                         system=system_prompt,
