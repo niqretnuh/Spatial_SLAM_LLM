@@ -1,3 +1,5 @@
 export { VoiceInterface } from './VoiceInterface';
 export { ChatInterface } from './ChatInterface';
-export { SlamVisualization3D } from './SlamVisualization3D';
+export { VideoInput } from './VideoInput';
+export { VideoPlayer } from './VideoPlayer';
+export { DomainSelection } from './DomainSelection';

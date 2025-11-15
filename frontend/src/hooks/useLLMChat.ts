@@ -8,6 +8,12 @@ import {
 } from '@/types';
 import { downloadJSON } from './useObjectQuery';
 
+interface UseLLMChatOptions {
+  video_id?: string | null;
+  context?: string[];
+  userId?: string;
+}
+
 interface UseLLMChatResult {
   // State
   messages: ChatMessage[];
@@ -28,7 +34,7 @@ interface UseLLMChatResult {
  * Hook for LLM chat interface with tool calling support
  * Returns JSON responses for all interactions
  */
-export function useLLMChat(): UseLLMChatResult {
+export function useLLMChat(options: UseLLMChatOptions = {}): UseLLMChatResult {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +58,8 @@ export function useLLMChat(): UseLLMChatResult {
       const request: LLMChatRequest = {
         message,
         context: messages.map((m) => m.content),
+        userId: options.userId,
+        video_id: options.video_id || undefined,
       };
 
       const response = await apiClient.sendChatMessage(request);

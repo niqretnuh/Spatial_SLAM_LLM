@@ -5,11 +5,13 @@ import './VoiceInterface.css';
 interface VoiceInterfaceProps {
   onTranscriptComplete?: (transcript: string) => void;
   autoSend?: boolean;
+  className?: string;
 }
 
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   onTranscriptComplete,
   autoSend = false,
+  className = '',
 }) => {
   const {
     isListening,
@@ -41,7 +43,20 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   }
 
   return (
-    <div className="voice-interface">
+    <div className={`voice-interface ${className}`}>
+      <div className="voice-header">
+        <h2>🎤 Voice Control</h2>
+        <div className="voice-actions">
+          <button
+            className="action-button"
+            onClick={exportVoiceHistory}
+            aria-label="Export voice history"
+          >
+            💾 Export
+          </button>
+        </div>
+      </div>
+
       <div className="voice-controls">
         <button
           className={`voice-button ${isListening ? 'listening' : ''}`}

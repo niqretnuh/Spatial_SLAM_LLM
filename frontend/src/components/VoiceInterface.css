@@ -1,8 +1,12 @@
 .voice-interface {
-  padding: 1.5rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', sans-serif;
 }
 
 .voice-controls {
@@ -19,19 +23,21 @@
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
+  font-family: 'Inter', sans-serif;
   color: white;
-  background: #007bff;
-  border: none;
-  border-radius: 6px;
+  background: rgba(160, 160, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(160, 160, 255, 0.3);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .voice-button:hover {
-  background: #0056b3;
+  background: rgba(160, 160, 255, 0.3);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(160, 160, 255, 0.3);
 }
 
 .voice-button:active {
@@ -39,20 +45,23 @@
 }
 
 .voice-button.listening {
-  background: #dc3545;
+  background: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.3);
   animation: pulse 1.5s infinite;
 }
 
 .voice-button.stop-speaking {
-  background: #6c757d;
+  background: rgba(108, 117, 125, 0.2);
+  border-color: rgba(108, 117, 125, 0.3);
 }
 
 .voice-button.secondary {
-  background: #6c757d;
+  background: rgba(108, 117, 125, 0.2);
+  border-color: rgba(108, 117, 125, 0.3);
 }
 
 .voice-button.secondary:hover {
-  background: #545b62;
+  background: rgba(108, 117, 125, 0.3);
 }
 
 .voice-button .icon {
@@ -70,19 +79,22 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: white;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
   font-weight: 500;
+  font-family: 'Inter', sans-serif;
 }
 
 .listening-indicator {
-  color: #dc3545;
-  border-left: 4px solid #dc3545;
+  color: #ff6b6b;
+  border-left: 4px solid #ff6b6b;
 }
 
 .speaking-indicator {
-  color: #28a745;
-  border-left: 4px solid #28a745;
+  color: #51cf66;
+  border-left: 4px solid #51cf66;
 }
 
 .pulse {
@@ -105,9 +117,12 @@
 }
 
 .transcript-display {
-  background: white;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   padding: 1.5rem;
+  flex: 1;
 }
 
 .transcript-section,
@@ -127,40 +142,46 @@
 .confidence-section label {
   display: block;
   font-weight: 600;
-  color: #495057;
+  color: rgba(255, 255, 255, 0.8);
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif;
 }
 
 .transcript-content,
 .interim-content {
   padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   min-height: 3rem;
   font-size: 1.1rem;
   line-height: 1.6;
-  color: #212529;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
 }
 
 .interim-content {
-  color: #6c757d;
+  color: rgba(255, 255, 255, 0.6);
   font-style: italic;
 }
 
 .confidence-bar {
   position: relative;
   height: 2rem;
-  background: #e9ecef;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   overflow: hidden;
+  backdrop-filter: blur(5px);
 }
 
 .confidence-fill {
   height: 100%;
-  background: linear-gradient(90deg, #28a745, #20c997);
+  background: linear-gradient(90deg, #51cf66, #40c057);
   transition: width 0.3s ease;
 }
 
@@ -170,17 +191,20 @@
   left: 50%;
   transform: translate(-50%, -50%);
   font-weight: 600;
-  color: #212529;
+  color: #ffffff;
   font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
 }
 
 .error-message {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
-  background: #f8d7da;
-  color: #721c24;
-  border-radius: 6px;
-  border-left: 4px solid #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  color: #ff6b6b;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  backdrop-filter: blur(10px);
+  font-family: 'Inter', sans-serif;
 }
 
 /* Accessibility */

@@ -21,6 +21,56 @@ export interface DetectedObject {
   distance_m?: number;
 }
 
+// Video Processing Types
+export interface VideoDetectedObject {
+  id: string;
+  label: string;
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2]
+  depth: number;
+  confidence?: number;
+}
+
+export interface VideoFrameData {
+  time: number;
+  objects: VideoDetectedObject[];
+}
+
+export interface CVPipelineResult {
+  video_id: string;
+  fps: number;
+  frames: VideoFrameData[];
+}
+
+export interface LLMInsight {
+  object_id: string;
+  insight: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface VideoProcessingRequest {
+  video: File | Blob;
+  domain?: string;
+  customDescription?: string;
+}
+
+export interface VideoProcessingResponse {
+  video_id: string;
+  status: 'processing' | 'completed' | 'failed';
+  progress?: number;
+}
+
+export interface VideoInsightsRequest {
+  video_id: string;
+  domain: string;
+  customDescription?: string;
+}
+
+export interface VideoInsightsResponse {
+  video_id: string;
+  insights: Record<string, LLMInsight[]>; // frame_key -> insights
+  domain: string;
+}
+
 // LLM Query types
 export interface ObjectLocationQuery {
   class: string;
@@ -54,6 +104,7 @@ export interface LLMChatRequest {
   message: string;
   context?: string[];
   userId?: string;
+  video_id?: string; // For video-specific queries
 }
 
 export interface LLMChatResponse {
@@ -77,26 +128,6 @@ export interface VoiceSynthesisRequest {
   pitch?: number;
 }
 
-// SLAM types
-export interface CameraPose {
-  position: Position3D;
-  rotation: {
-    x: number;
-    y: number;
-    z: number;
-    w: number;
-  };
-  timestamp: string;
-}
-
-export interface SLAMSession {
-  sessionId: string;
-  status: 'idle' | 'initializing' | 'tracking' | 'lost';
-  startTime: string;
-  keyframeCount: number;
-  mapPointCount: number;
-}
-
 // API Response wrapper
 export interface ApiResponse<T> {
   success: boolean;
@@ -107,7 +138,7 @@ export interface ApiResponse<T> {
 
 // WebSocket message types
 export interface WSMessage {
-  type: 'camera_pose' | 'object_detected' | 'slam_status' | 'llm_response';
+  type: 'object_detected' | 'llm_response';
   payload: any;
   timestamp: string;
 }

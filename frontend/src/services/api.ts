@@ -5,9 +5,12 @@ import {
   LLMChatRequest,
   LLMChatResponse,
   DetectedObject,
-  SLAMSession,
-  CameraPose,
   ApiResponse,
+  VideoProcessingRequest,
+  VideoProcessingResponse,
+  VideoInsightsRequest,
+  VideoInsightsResponse,
+  CVPipelineResult,
 } from '@/types';
 
 class ApiClient {
@@ -104,74 +107,6 @@ class ApiClient {
     }
   }
 
-  // SLAM Session Management
-  async startSLAMSession(): Promise<ApiResponse<SLAMSession>> {
-    try {
-      const response = await this.client.post('/slam/start');
-      return {
-        success: true,
-        data: response.data,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  async stopSLAMSession(): Promise<ApiResponse<void>> {
-    try {
-      await this.client.post('/slam/stop');
-      return {
-        success: true,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  async getSLAMStatus(): Promise<ApiResponse<SLAMSession>> {
-    try {
-      const response = await this.client.get('/slam/status');
-      return {
-        success: true,
-        data: response.data,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  async getCurrentPose(): Promise<ApiResponse<CameraPose>> {
-    try {
-      const response = await this.client.get('/slam/pose');
-      return {
-        success: true,
-        data: response.data,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
   // Text-to-Speech
   async synthesizeSpeech(text: string): Promise<ApiResponse<Blob>> {
     try {
@@ -194,56 +129,40 @@ class ApiClient {
     }
   }
 
-  // SLAM Visualization
-  async getSlamVisualization(options?: {
-    etag?: string | null;
-    lastModified?: string | null;
-  }): Promise<ApiResponse<{
-    imageUrl?: string;
-    etag?: string;
-    lastModified?: string;
-    modified?: boolean;
-  }>> {
+  // Health check
+  async healthCheck(): Promise<boolean> {
     try {
-      const headers: Record<string, string> = {};
+      await this.client.get('/health');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Video Processing APIs
+  async processVideo(request: VideoProcessingRequest): Promise<ApiResponse<VideoProcessingResponse>> {
+    try {
+      const formData = new FormData();
+      formData.append('video', request.video);
       
-      // Add conditional request headers
-      if (options?.etag) {
-        headers['If-None-Match'] = options.etag;
+      if (request.domain) {
+        formData.append('domain', request.domain);
       }
-      if (options?.lastModified) {
-        headers['If-Modified-Since'] = options.lastModified;
+      
+      if (request.customDescription) {
+        formData.append('customDescription', request.customDescription);
       }
 
-      const response = await this.client.get('/slam/visualization', {
-        headers,
-        responseType: 'blob',
-        validateStatus: (status) => status === 200 || status === 304,
+      const response = await this.client.post('/process-video', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 300000, // 5 minutes for video processing
       });
-
-      // 304 Not Modified - no changes
-      if (response.status === 304) {
-        return {
-          success: true,
-          data: { modified: false },
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      // 200 OK - new image data
-      const blob = response.data;
-      const imageUrl = URL.createObjectURL(blob);
-      const etag = response.headers['etag'] || null;
-      const lastModified = response.headers['last-modified'] || null;
 
       return {
         success: true,
-        data: {
-          imageUrl,
-          etag,
-          lastModified,
-          modified: true,
-        },
+        data: response.data,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
@@ -255,13 +174,110 @@ class ApiClient {
     }
   }
 
-  // Health check
-  async healthCheck(): Promise<boolean> {
+  async getVideoProcessingStatus(videoId: string): Promise<ApiResponse<VideoProcessingResponse>> {
     try {
-      await this.client.get('/health');
-      return true;
-    } catch {
-      return false;
+      const response = await this.client.get(`/process-video/${videoId}/status`);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async getCVResults(videoId: string): Promise<ApiResponse<CVPipelineResult>> {
+    try {
+      const response = await this.client.get(`/cv-results/${videoId}`);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async generateInsights(request: VideoInsightsRequest): Promise<ApiResponse<VideoInsightsResponse>> {
+    try {
+      const response = await this.client.post('/generate-insights', request);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async getVideoInsights(videoId: string): Promise<ApiResponse<VideoInsightsResponse>> {
+    try {
+      const response = await this.client.get(`/insights/${videoId}`);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async queryVideoInsights(videoId: string, question: string): Promise<ApiResponse<LLMChatResponse>> {
+    try {
+      const response = await this.client.post('/query-insights', {
+        video_id: videoId,
+        question: question,
+      });
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  async getProcessedVideo(videoId: string): Promise<ApiResponse<Blob>> {
+    try {
+      const response = await this.client.get(`/processed-video/${videoId}`, {
+        responseType: 'blob',
+      });
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
     }
   }
 }

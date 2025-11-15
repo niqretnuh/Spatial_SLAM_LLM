@@ -1,19 +1,45 @@
 import React, { useState } from 'react';
 import { useLLMChat, useVoiceInterface } from '@/hooks';
+import { ChatMessage } from '@/types';
 import './ChatInterface.css';
 
-export const ChatInterface: React.FC = () => {
+interface VideoContext {
+  videoId: string;
+  hasCV: boolean;
+  hasInsights: boolean;
+}
+
+interface ChatInterfaceProps {
+  messages?: ChatMessage[];
+  onSendMessage?: (message: string) => Promise<void>;
+  isLoading?: boolean;
+  className?: string;
+  videoContext?: VideoContext;
+}
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  messages: externalMessages,
+  onSendMessage: externalSendMessage,
+  isLoading: externalIsLoading,
+  className = '',
+  videoContext
+}) => {
   const {
-    messages,
-    isLoading,
+    messages: internalMessages,
+    isLoading: internalIsLoading,
     error,
-    sendMessage,
+    sendMessage: internalSendMessage,
     clearHistory,
     exportConversation,
   } = useLLMChat();
 
   const { speak, isSpeaking } = useVoiceInterface();
   const [inputText, setInputText] = useState('');
+
+  // Use external props if provided, otherwise use internal hook
+  const messages = externalMessages || internalMessages;
+  const isLoading = externalIsLoading ?? internalIsLoading;
+  const sendMessage = externalSendMessage || internalSendMessage;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +54,21 @@ export const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="chat-interface">
+    <div className={`chat-interface ${className}`}>
       <div className="chat-header">
-        <h2>LLM Assistant</h2>
+        <h2>💬 AI Assistant</h2>
         <div className="chat-actions">
+          {videoContext && (
+            <div className="video-context-indicator">
+              <span className="context-label">Video Analysis:</span>
+              <span className={`context-status ${videoContext.hasCV ? 'active' : 'inactive'}`}>
+                {videoContext.hasCV ? '✅ CV' : '⏳ CV'}
+              </span>
+              <span className={`context-status ${videoContext.hasInsights ? 'active' : 'inactive'}`}>
+                {videoContext.hasInsights ? '✅ Insights' : '⏳ Insights'}
+              </span>
+            </div>
+          )}
           <button
             className="action-button"
             onClick={exportConversation}
