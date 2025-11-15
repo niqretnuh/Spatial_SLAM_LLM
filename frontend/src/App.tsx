@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { VoiceInterface, ChatInterface, VideoInput, VideoPlayer } from './components';
+import { VoiceInterface, VideoInput, VideoPlayer } from './components';
 import { useLLMChat } from './hooks';
 import { apiClient } from './services/api';
 import { CVPipelineResult, VideoInsightsResponse, VideoDetectedObject, LLMInsight } from './types';
@@ -189,9 +189,9 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1 className="app-title">👁️ Third Eye Visual Intelligence</h1>
+        <h1 className="app-title">👁️ JARVIS</h1>
         <p className="app-subtitle">
-          AI-powered video analysis for accessibility and safety insights
+          AI-Powered Video Analysis smarter than your own eye.
         </p>
       </header>
 
@@ -212,10 +212,9 @@ function App() {
             }
           }}
         >
-          <option value="">Select Analysis Domain</option>
-          <option value="accessibility">🦽 Accessibility Assessment</option>
+          <option value="">Select Domain</option>
+          <option value="accessibility">🦽 Accessibility Navigation</option>
           <option value="construction_safety">🏗️ Construction Safety</option>
-          <option value="fall_prevention">⚠️ Fall Prevention</option>
           <option value="custom">✨ Custom Analysis</option>
         </select>
       </div>
@@ -253,30 +252,22 @@ function App() {
           </div>
         </div>
 
-        {/* Chat Section - Only show for non-accessibility domains */}
-        {selectedDomain !== 'accessibility' && selectedDomain !== '' && (
-          <div className="chat-section">
-            <h2 className="section-title">💬 AI Assistant</h2>
-            <ChatInterface 
+        {/* AI Assistant Section - Show for all domains */}
+        {selectedDomain !== '' && (
+          <div className="voice-section">
+            <h2 className="section-title">
+              {selectedDomain === 'accessibility' ? 'JARVIS' : 'JARVIS'}
+            </h2>
+            <VoiceInterface
               messages={messages}
               onSendMessage={sendMessage}
               isLoading={isChatLoading}
+              selectedDomain={selectedDomain}
               videoContext={currentVideoId ? {
                 videoId: currentVideoId,
                 hasCV: !!cvData,
                 hasInsights: !!insights
               } : undefined}
-            />
-          </div>
-        )}
-        
-        {/* Voice Section - Only show for accessibility domain */}
-        {selectedDomain === 'accessibility' && (
-          <div className="voice-section">
-            <h2 className="section-title">🎤 Voice Interface</h2>
-            <VoiceInterface
-              onTranscriptComplete={handleVoiceTranscript}
-              autoSend={true}
             />
           </div>
         )}

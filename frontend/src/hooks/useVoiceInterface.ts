@@ -56,6 +56,25 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
   // Check if browser supports Web Speech API
   const isSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 
+  // Load voices when component mounts
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        window.speechSynthesis.getVoices();
+      };
+
+      // Load voices immediately if available
+      loadVoices();
+      
+      // Listen for voice loading event
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+      
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      };
+    }
+  }, []);
+
   // Initialize Speech Recognition
   useEffect(() => {
     if (!isSupported) return;
@@ -139,6 +158,77 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
     }
   }, []);
 
+  // Helper function to get the best available voice
+  const getBestVoice = useCallback(() => {
+    if (!('speechSynthesis' in window)) return null;
+    
+    const voices = window.speechSynthesis.getVoices();
+    
+    // Try to find Google UK English Male first
+    const googleUKMale = voices.find(voice => 
+      voice.name.includes('Google UK English Male') ||
+      (voice.name.includes('Google') && voice.lang === 'en-GB' && voice.name.includes('Male'))
+    );
+    
+    if (googleUKMale) {
+      return googleUKMale;
+    }
+    
+    // Fallback to any Google UK voice
+    const googleUK = voices.find(voice => 
+      voice.name.includes('Google') && voice.lang === 'en-GB'
+    );
+    
+    if (googleUK) {
+      return googleUK;
+    }
+    
+    // Final fallback to any English voice
+    return voices.find(voice => voice.lang.includes('en')) || voices[0] || null;
+  }, []);
+
+  // Enhanced speak function that always uses the best voice
+  const speakWithBestVoice = useCallback((text: string) => {
+    if (!('speechSynthesis' in window)) {
+      setError('Speech synthesis not supported');
+      return;
+    }
+
+    setIsSpeaking(true);
+    
+    synthesisRef.current = new SpeechSynthesisUtterance(text);
+    synthesisRef.current.lang = 'en-US';
+    synthesisRef.current.rate = 1.1; // Slightly slower for clarity
+    synthesisRef.current.pitch = 1.0; // Slightly higher pitch for friendliness
+    synthesisRef.current.volume = 1.0; // Slightly lower volume
+    
+    const bestVoice = getBestVoice();
+    if (bestVoice) {
+      synthesisRef.current.voice = bestVoice;
+    }
+    
+    synthesisRef.current.onend = () => {
+      setIsSpeaking(false);
+    };
+    
+    synthesisRef.current.onerror = (event) => {
+      setError(`Speech synthesis error: ${event.error}`);
+      setIsSpeaking(false);
+    };
+    
+    window.speechSynthesis.speak(synthesisRef.current);
+    
+    // Log synthesis
+    const synthesisLog: VoiceInteraction = {
+      type: 'synthesis',
+      text: text,
+      timestamp: new Date().toISOString(),
+    };
+    
+    setVoiceHistory((prev) => [...prev, synthesisLog]);
+    console.log('Voice Synthesis (JSON):', JSON.stringify(synthesisLog, null, 2));
+  }, [getBestVoice]);
+
   const speak = useCallback(async (text: string) => {
     setError(null);
     
@@ -161,8 +251,8 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
           setError('Audio playback error');
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
-          // Fallback to browser TTS
-          fallbackSpeak(text);
+          // Fallback to enhanced browser TTS
+          speakWithBestVoice(text);
         };
         
         await audioRef.current.play();
@@ -177,49 +267,15 @@ export function useVoiceInterface(): UseVoiceInterfaceResult {
         setVoiceHistory((prev) => [...prev, synthesisLog]);
         console.log('Voice Synthesis (JSON):', JSON.stringify(synthesisLog, null, 2));
       } else {
-        // Fallback to browser TTS
-        fallbackSpeak(text);
+        // Fallback to enhanced browser TTS
+        speakWithBestVoice(text);
       }
     } catch (err: any) {
       setError(err.message);
-      // Fallback to browser TTS
-      fallbackSpeak(text);
+      // Fallback to enhanced browser TTS
+      speakWithBestVoice(text);
     }
-  }, []);
-
-  const fallbackSpeak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      setIsSpeaking(true);
-      
-      synthesisRef.current = new SpeechSynthesisUtterance(text);
-      synthesisRef.current.lang = 'en-US';
-      synthesisRef.current.rate = 1.0;
-      synthesisRef.current.pitch = 1.0;
-      
-      synthesisRef.current.onend = () => {
-        setIsSpeaking(false);
-      };
-      
-      synthesisRef.current.onerror = (event) => {
-        setError(`Speech synthesis error: ${event.error}`);
-        setIsSpeaking(false);
-      };
-      
-      window.speechSynthesis.speak(synthesisRef.current);
-      
-      // Log synthesis
-      const synthesisLog: VoiceInteraction = {
-        type: 'synthesis',
-        text: text,
-        timestamp: new Date().toISOString(),
-      };
-      
-      setVoiceHistory((prev) => [...prev, synthesisLog]);
-      console.log('Voice Synthesis (JSON):', JSON.stringify(synthesisLog, null, 2));
-    } else {
-      setError('Speech synthesis not supported');
-    }
-  };
+  }, [speakWithBestVoice]);
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
