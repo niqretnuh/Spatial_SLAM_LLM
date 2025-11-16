@@ -254,8 +254,8 @@ body {
 }
 
 /* Responsive design */
-@media (max-width: 1400px) {
-  /* Accessibility layout - stack voice below video on smaller screens */
+@media (max-width: 1024px) {
+  /* Only stack on tablet/mobile sizes, not on desktop */
   .main-grid.accessibility-layout {
     grid-template-columns: 1fr;
     grid-template-rows: 2fr 1fr;
@@ -272,26 +272,20 @@ body {
     grid-template-columns: 1fr;
     grid-template-rows: 2fr 1fr;
   }
-  
-  /* Non-accessibility layout with chat */
-  .main-grid.non-accessibility-layout:has(.chat-section) {
-    grid-template-columns: 2fr 1fr;
-  }
-  
-  /* Non-accessibility layout without chat */
-  .main-grid.non-accessibility-layout:not(:has(.chat-section)) {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 1200px) {
-  .main-grid,
-  .main-grid.accessibility-layout,
-  .main-grid.construction-safety-layout,
-  .main-grid.fall-prevention-layout,
-  .main-grid.non-accessibility-layout {
+  .main-grid {
     height: calc(100vh - 260px);
     gap: 15px;
+  }
+  
+  /* Keep side-by-side layout for all domains except on very small screens */
+  .main-grid.accessibility-layout,
+  .main-grid.construction-safety-layout,
+  .main-grid.fall-prevention-layout {
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr;
   }
   
   .app-container {
