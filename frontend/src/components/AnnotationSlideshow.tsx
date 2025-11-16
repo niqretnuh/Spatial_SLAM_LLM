@@ -24,6 +24,7 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
 }) => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [hoveredObject, setHoveredObject] = useState<TooltipData | null>(null);
+  const [focusedObjectId, setFocusedObjectId] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const imageRef = useRef<HTMLImageElement>(null);
@@ -127,9 +128,42 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
     ] as [number, number, number, number];
   }, [imageDimensions, imageLoaded]);
 
+  // Check if two bounding boxes overlap
+  const boxesOverlap = useCallback((bbox1: [number, number, number, number], bbox2: [number, number, number, number]) => {
+    const [x1a, y1a, x2a, y2a] = bbox1;
+    const [x1b, y1b, x2b, y2b] = bbox2;
+    return !(x2a < x1b || x2b < x1a || y2a < y1b || y2b < y1a);
+  }, []);
+
+  // Get overlapping objects at a given position
+  const getOverlappingObjects = useCallback((targetObject: AnnotatedObject) => {
+    const targetBbox = getScaledBbox(targetObject.bbox);
+    return currentFrame.objects.filter(obj => 
+      obj.id !== targetObject.id && boxesOverlap(getScaledBbox(obj.bbox), targetBbox)
+    );
+  }, [currentFrame.objects, getScaledBbox, boxesOverlap]);
+
+  // Handle click on bounding box to focus/cycle through overlapping objects
+  const handleObjectClick = useCallback((object: AnnotatedObject, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const overlapping = getOverlappingObjects(object);
+    
+    if (overlapping.length > 0) {
+      // If there are overlapping objects, cycle through them
+      const allObjects = [object, ...overlapping];
+      const currentIndex = focusedObjectId ? allObjects.findIndex(obj => obj.id === focusedObjectId) : -1;
+      const nextIndex = (currentIndex + 1) % allObjects.length;
+      setFocusedObjectId(allObjects[nextIndex].id);
+    } else {
+      // Single object, just focus it
+      setFocusedObjectId(object.id === focusedObjectId ? null : object.id);
+    }
+  }, [focusedObjectId, getOverlappingObjects]);
+
   // Reset when frame changes
   useEffect(() => {
     setHoveredObject(null);
+    setFocusedObjectId(null);
   }, [currentFrameIndex]);
 
   // Keyboard navigation
@@ -168,7 +202,7 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
 
       <div className="slideshow-container" ref={containerRef}>
         {/* Main 16:9 image display */}
-        <div className="image-container">
+        <div className="image-container" onClick={() => setFocusedObjectId(null)}>
           <img
             ref={imageRef}
             src={currentFrame.imagePath}
@@ -181,21 +215,36 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
           {imageLoaded && currentFrame.objects.map((object, index) => {
             const [x1, y1, x2, y2] = getScaledBbox(object.bbox);
             const color = colors[index % colors.length];
+            const overlapping = getOverlappingObjects(object);
+            const isHovered = hoveredObject?.object.id === object.id;
+            const isFocused = focusedObjectId === object.id;
+            const hasOverlaps = overlapping.length > 0;
+            
+            // Calculate z-index: focused > hovered > has overlaps > normal
+            let zIndex = 10 + index;
+            if (hasOverlaps) zIndex += 100;
+            if (isHovered) zIndex += 200;
+            if (isFocused) zIndex += 300;
+            
+            const opacity = isFocused ? '40' : (isHovered ? '25' : '15');
             
             return (
               <div
                 key={object.id}
-                className="bounding-box"
+                className={`bounding-box ${isFocused ? 'focused' : ''} ${hasOverlaps ? 'has-overlaps' : ''}`}
                 style={{
                   left: x1,
                   top: y1,
                   width: x2 - x1,
                   height: y2 - y1,
                   borderColor: color,
-                  backgroundColor: `${color}15` // 15% opacity
+                  backgroundColor: `${color}${opacity}`,
+                  zIndex
                 }}
                 onMouseEnter={(e) => handleObjectHover(object, e)}
                 onMouseLeave={handleObjectLeave}
+                onClick={(e) => handleObjectClick(object, e)}
+                title={hasOverlaps ? `Click to cycle through ${overlapping.length + 1} overlapping objects` : `Click to focus on ${object.label}`}
               >
                 <div className="object-label" style={{ backgroundColor: color }}>
                   {object.label}
@@ -298,7 +347,7 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
       {/* Keyboard shortcuts info */}
       <div className="shortcuts-info">
         <small>
-          💡 Use ← → arrow keys to navigate frames • Hover over boxes for details
+          💡 Use ← → arrow keys to navigate frames • Hover for details • Click overlapping boxes to cycle through them
         </small>
       </div>
     </div>

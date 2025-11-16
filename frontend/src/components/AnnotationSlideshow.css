@@ -99,11 +99,27 @@
   cursor: pointer;
   transition: all 0.2s ease;
   z-index: 10;
+  border-radius: 4px;
 }
 
 .bounding-box:hover {
   border-width: 4px;
   transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.bounding-box.focused {
+  border-width: 5px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+  transform: scale(1.05);
+}
+
+.bounding-box.has-overlaps {
+  border-style: dashed;
+}
+
+.bounding-box.has-overlaps:hover {
+  border-style: solid;
 }
 
 .object-label {
@@ -117,6 +133,17 @@
   font-weight: 600;
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.overlap-indicator {
+  font-size: 0.7rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 700;
 }
 
 .object-tooltip {

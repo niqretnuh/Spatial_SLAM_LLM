@@ -225,7 +225,7 @@ export const VideoInput: React.FC<VideoInputProps> = ({
       }, 500);
 
       // Simulate API delay and processing
-      await new Promise(resolve => setTimeout(resolve, 3000)); // 3 second delay
+      await new Promise(resolve => setTimeout(resolve, 15000)); // 3 second delay
       
       clearInterval(progressInterval);
       setProcessingProgress(100);
