@@ -6,6 +6,7 @@ interface AnnotationSlideshowProps {
   annotationData: AnnotationResponse;
   onRestart?: () => void;
   className?: string;
+  onFrameChange?: (frameIndex: number) => void;
 }
 
 interface TooltipData {
@@ -18,7 +19,8 @@ interface TooltipData {
 export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
   annotationData,
   onRestart,
-  className = ''
+  className = '',
+  onFrameChange
 }) => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [hoveredObject, setHoveredObject] = useState<TooltipData | null>(null);
@@ -26,6 +28,13 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Notify parent when frame changes
+  useEffect(() => {
+    if (onFrameChange) {
+      onFrameChange(currentFrameIndex);
+    }
+  }, [currentFrameIndex, onFrameChange]);
 
   const currentFrame = annotationData.legacyFrames?.[currentFrameIndex] || {
     frameNumber: 1,

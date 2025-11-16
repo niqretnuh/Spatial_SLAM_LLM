@@ -343,13 +343,25 @@ async def chat_with_llm(request: LLMChatRequest):
     Accepts text query, conversation context, and optional spatial data
     """
     try:
-        logger.info(f"Received chat request: {request.message}")
-        logger.info(f"Spatial data provided: {len(request.spatial_data) if request.spatial_data else 0} objects")
+        logger.info("=" * 60)
+        logger.info("📤 PREPARING DATA FOR CLAUDE (TEXT-ONLY)")
+        logger.info("=" * 60)
+        logger.info(f"💬 User Message: {request.message}")
+        logger.info(f"📊 Spatial data provided: {len(request.spatial_data) if request.spatial_data else 0} objects")
         
         # Get or create session for context management
         session_id = get_or_create_session_id(request.video_id, request.userId)
         session_context = get_spatial_context(session_id)
-        logger.info(f"Using session ID: {session_id}")
+        logger.info(f"🔑 Using session ID: {session_id}")
+        
+        if request.spatial_data:
+            logger.info("   Sample spatial objects:")
+            for i, obj in enumerate(request.spatial_data[:5]):
+                logger.info(f"   {i+1}. Frame {obj.frame}: {obj.object_name}")
+                logger.info(f"      Position: (x={obj.x:.2f}, y={obj.y:.2f}, z={obj.z:.2f})")
+            if len(request.spatial_data) > 5:
+                logger.info(f"   ... and {len(request.spatial_data) - 5} more objects")
+        logger.info("=" * 60)
         
         # Build conversation history
         messages = []
@@ -384,23 +396,39 @@ async def chat_with_llm(request: LLMChatRequest):
             "content": current_message_content
         })
         
-        # TODO: Enhance system prompt for spatial awareness and safety analysis
-        system_prompt = """You are a safety analysis assistant with access to a 3D spatial tracking system.
-        You can analyze the enviroment for safety hazards, calling out what to look out for.
+        # Enhanced system prompt for spatial awareness
+        system_prompt = """You are JARVIS, an advanced AI assistant with spatial awareness capabilities.
+        You have access to a 3D spatial tracking system that provides detailed environmental data.
         
-        You have access to:
-        - Frame-by-frame object tracking from video with 3D coordinates (x, y, z in meters)
-        - Object labels (e.g., ladder, doorway, heavy_equipment, overhead_shelf, worker, hard_hat)
-        - Spatial relationships between objects
-        2. Use get_object_location to find specific objects and their coordinates
-        3. Analyze spatial relationships: calculate distances, check clearances, identify hazards
-        DO NOT OUTPUT object locations, only how far they are from us (reference point 0,0,0)
-        Provide specific, actionable safety insights with measurements when applicable.
-        output short, concise answers under 100 words."""
+        SPATIAL DATA:
+        - Object labels from the environment (e.g., car, tree, building, traffic light, pole, fence)
+        - Distance from viewer/camera in meters (z-coordinate represents depth from origin 0,0,0)
+        - Object dimensions: length x width in meters
+        - 3D position coordinates (x, y, z) relative to the camera/viewer
+        - Frame-by-frame tracking showing where objects appear in the video
+        
+        TOOLS AVAILABLE:
+        - get_object_location: Find specific objects and their coordinates
+        - list_all_objects: Get complete inventory of detected objects
+        
+        RESPONSE GUIDELINES:
+        - Be concise and actionable (under 100 words)
+        - Report distances from the viewer (you are at position 0,0,0)
+        - Focus on answering the user's specific question
+        - For navigation: mention obstacles, clearances, and safe paths
+        - For safety: identify hazards with their locations and measurements
+        - Translate coordinates to natural language (e.g., "2.5m ahead" not "z=2.5")
+        
+        Use the tools when needed to find specific objects or get a complete scene overview."""
 
         # Call Claude API with tools
         tool_calls_made = []
         objects_found = []
+        
+        logger.info("🚀 Calling Claude API...")
+        logger.info(f"   Model: claude-sonnet-4-20250514")
+        logger.info(f"   Max tokens: 1024")
+        logger.info(f"   Tools available: {len(TOOLS)}")
         
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -410,7 +438,8 @@ async def chat_with_llm(request: LLMChatRequest):
             messages=messages
         )
         
-        logger.info(f"Claude response: {response}")
+        logger.info(f"✅ Claude response received")
+        logger.info(f"   Stop reason: {response.stop_reason}")
         
         # Process the response
         final_text = ""
@@ -482,7 +511,14 @@ async def chat_with_llm(request: LLMChatRequest):
             timestamp=datetime.utcnow().isoformat()
         )
         
-        logger.info(f"Returning response: {llm_response}")
+        logger.info("=" * 60)
+        logger.info("📥 CLAUDE RESPONSE")
+        logger.info("=" * 60)
+        logger.info(f"💬 Response: {final_text[:200]}{'...' if len(final_text) > 200 else ''}")
+        logger.info(f"🔧 Tools called: {len(tool_calls_made) if tool_calls_made else 0}")
+        logger.info(f"📍 Objects found: {len(objects_found) if objects_found else 0}")
+        logger.info("=" * 60)
+        
         return llm_response
         
     except anthropic.APIError as e:
@@ -562,6 +598,26 @@ async def chat_with_llm_multimodal(
         
         logger.info(f"Total images processed: {len(images_base64)}")
         
+        # Log what we're sending to Claude
+        logger.info("=" * 60)
+        logger.info("📤 PREPARING DATA FOR CLAUDE (MULTIMODAL)")
+        logger.info("=" * 60)
+        logger.info(f"💬 User Message: {message}")
+        logger.info(f"🖼️  Images: {len(images_base64)} frames")
+        for i, img_data in enumerate(images_base64):
+            data_size_kb = len(img_data["data"]) * 3 / 4 / 1024  # Approximate base64 size
+            logger.info(f"   {i+1}. {img_data['media_type']} (~{data_size_kb:.1f}KB)")
+        logger.info(f"📊 Spatial Objects: {len(parsed_spatial_data)}")
+        if parsed_spatial_data:
+            logger.info(f"   Frames covered: {len(set(obj.frame for obj in parsed_spatial_data))}")
+            logger.info("   Sample objects:")
+            for i, obj in enumerate(parsed_spatial_data[:5]):
+                logger.info(f"   {i+1}. Frame {obj.frame}: {obj.object_name}")
+                logger.info(f"      Position: (x={obj.x:.2f}, y={obj.y:.2f}, z={obj.z:.2f})")
+            if len(parsed_spatial_data) > 5:
+                logger.info(f"   ... and {len(parsed_spatial_data) - 5} more objects")
+        logger.info("=" * 60)
+        
         # Build conversation history
         messages = []
         
@@ -593,6 +649,9 @@ async def chat_with_llm_multimodal(
         if parsed_spatial_data:
             spatial_context = format_spatial_data_for_llm(parsed_spatial_data)
             text_content = f"{message}\n\n{spatial_context}"
+            logger.info("📝 Text content with spatial data formatted for LLM:")
+            logger.info(f"   Total length: {len(text_content)} characters")
+            logger.info(f"   Spatial context preview: {spatial_context[:200]}...")
         
         # Add spatial map context if available in session
         if "spatial_map" in session_context:
@@ -610,28 +669,47 @@ async def chat_with_llm_multimodal(
             "content": message_content
         })
         
-        # Enhanced system prompt for multimodal analysis
-        system_prompt = """You are a helpful assistant integrated with a spatial SLAM 
-        (Simultaneous Localization and Mapping) system. You have vision capabilities and can analyze images
-        along with spatial data.
+        # Enhanced system prompt for multimodal analysis with spatial awareness
+        system_prompt = """You are JARVIS, an advanced AI assistant with computer vision and spatial awareness capabilities. 
+        You have access to a 3D spatial mapping system that provides detailed environmental analysis.
         
-        You have access to:
-        - Visual information from up to 4 images showing the environment
-        - Frame-by-frame object tracking data with 3D coordinates (x, y, z)
-        - Object names and their positions over time
+        VISUAL CONTEXT:
+        - You are provided with a single frame from a video showing the current view of the environment
+        - This frame shows the scene with detected objects and their spatial measurements
+        - The user can navigate through different frames, and you'll see one frame at a time
         
-        When responding:
-        1. Analyze the provided images to understand the visual context
-        2. Cross-reference visual information with the spatial data
-        3. Use tools (get_object_location, list_all_objects) when needed
-        4. Consider object trajectories, spatial relationships, and visual context
-        5. Provide clear, natural language responses about object locations and environment understanding
-
-        Always be helpful, concise, and give short instructional responses."""
+        SPATIAL DATA:
+        - Object labels (e.g., car, tree, building, road, traffic light, pole, window, fence)
+        - Distance from viewer/camera in meters (z-coordinate represents depth)
+        - Object dimensions: length x width in meters
+        - 3D position coordinates (x, y, z) relative to the camera/viewer at origin (0,0,0)
+        - Frame number where each object first appears
+        
+        ANALYSIS APPROACH:
+        1. **Visual Analysis**: Examine the provided images to understand the scene layout
+        2. **Spatial Context**: Use the distance and dimension data to understand object relationships
+        3. **Safety/Navigation**: Identify relevant objects based on the user's question
+        4. **Measurements**: Report distances from the viewer (you are at position 0,0,0)
+        
+        RESPONSE GUIDELINES:
+        - Be concise and actionable (under 100 words)
+        - Reference specific objects with their distances (e.g., "There's a car 2.8m ahead")
+        - Focus on answering the user's specific question
+        - For navigation: mention obstacles, clearances, and paths
+        - For safety: identify hazards with their locations and measurements
+        - Do NOT list raw coordinates; translate them to natural language descriptions
+        
+        Remember: The viewer is at the origin (0,0,0), and the z-coordinate indicates how far away objects are."""
         
         # Call Claude API with tools and multimodal content
         tool_calls_made = []
         objects_found = []
+        
+        logger.info("🚀 Calling Claude API...")
+        logger.info(f"   Model: claude-sonnet-4-20250514")
+        logger.info(f"   Max tokens: 2048")
+        logger.info(f"   Tools available: {len(TOOLS)}")
+        logger.info(f"   Message content blocks: {len(message_content)}")
         
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -641,7 +719,9 @@ async def chat_with_llm_multimodal(
             messages=messages
         )
         
-        logger.info(f"Claude multimodal response received")
+        logger.info("✅ Claude multimodal response received")
+        logger.info(f"   Stop reason: {response.stop_reason}")
+        logger.info(f"   Response content blocks: {len(response.content)}")
         
         # Process the response (same tool handling as before)
         final_text = ""
@@ -712,7 +792,14 @@ async def chat_with_llm_multimodal(
             timestamp=datetime.utcnow().isoformat()
         )
         
-        logger.info(f"Returning multimodal response")
+        logger.info("=" * 60)
+        logger.info("📥 CLAUDE RESPONSE")
+        logger.info("=" * 60)
+        logger.info(f"💬 Response text: {final_text[:200]}{'...' if len(final_text) > 200 else ''}")
+        logger.info(f"🔧 Tools called: {len(tool_calls_made) if tool_calls_made else 0}")
+        logger.info(f"📍 Objects found: {len(objects_found) if objects_found else 0}")
+        logger.info("=" * 60)
+        
         return llm_response
         
     except anthropic.APIError as e:
