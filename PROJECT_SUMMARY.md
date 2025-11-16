@@ -391,7 +391,8 @@ This frontend provides a complete, accessible web application for the Spatial SL
 All components are production-ready and can be deployed immediately once the backend APIs are implemented.
 
 ---
+### TODOS:
 
-**Project Status**: ✅ Complete and ready for integration with backend services.
-
-For questions or support, refer to the documentation files or review the inline code comments.
+1. connect the APIs to each other so we have everything working fine
+2. selection for the APIs to do accessability vs osha violations
+3. 

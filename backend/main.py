@@ -235,7 +235,7 @@ async def chat_with_llm(request: LLMChatRequest):
             "content": current_message_content
         })
         
-        # Enhanced system prompt for spatial awareness and safety analysis
+        # TODO: Enhance system prompt for spatial awareness and safety analysis
         system_prompt = """You are a safety analysis assistant with access to a 3D spatial tracking system.
         You can analyze workplace environments for OSHA compliance and safety hazards.
         
