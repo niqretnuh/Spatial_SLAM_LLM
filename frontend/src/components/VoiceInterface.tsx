@@ -169,9 +169,11 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     e.preventDefault();
     if (!inputText.trim() || isLoading || !onSendMessage) return;
 
+    const messageToSend = inputText;
+    setInputText(''); // Clear input immediately
     setIsVoiceInput(false); // Mark as typed input
-    await onSendMessage(inputText);
-    setInputText('');
+    
+    await onSendMessage(messageToSend);
     setLastSentTranscript('');
   };
 
