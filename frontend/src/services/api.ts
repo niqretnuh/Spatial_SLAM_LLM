@@ -347,7 +347,11 @@ class ApiClient {
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
       
       const mockData: AnnotationResponse = {
-        frames: [
+        domain: 'construction_safety',
+        total_frames: 4,
+        summary: {},
+        frames: [], // Keep empty for JSONAnnotatedFrame compatibility
+        legacyFrames: [
           {
             frameNumber: 1,
             imagePath: '/src/dummy/frame1.png',

@@ -18,7 +18,7 @@ dummy_cv_results = {
                         "z": 3.2   # meters away from camera (depth)
                     },
                     "depth": 3.2,
-
+                    "confidence": 0.95
                 },
                 {
                     "id": "obj_2",
@@ -30,7 +30,7 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
-
+                    "confidence": 0.92
                 },
                 {
                     "id": "obj_3",
@@ -42,7 +42,11 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
-                    
+                    "confidence": 0.89,
+                    "properties": {
+                        "suspended": True,
+                        "weight_category": "heavy"
+                    }
                 },
                 {
                     "id": "obj_4",
@@ -93,7 +97,7 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
-
+                    "confidence": 0.92
                 },
                 {
                     "id": "obj_3",
@@ -105,7 +109,11 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
-                    
+                    "confidence": 0.89,
+                    "properties": {
+                        "suspended": True,
+                        "weight_category": "heavy"
+                    }
                 },
                 {
                     "id": "obj_4",
@@ -117,7 +125,7 @@ dummy_cv_results = {
                         "z": 3.0
                     },
                     "depth": 3.0,
-
+                    "confidence": 0.91
                 },
                 {
                     "id": "obj_5",
@@ -129,7 +137,7 @@ dummy_cv_results = {
                         "z": 3.3
                     },
                     "depth": 3.3,
-
+                    "confidence": 0.97
                 }
             ]
         },
@@ -146,7 +154,7 @@ dummy_cv_results = {
                         "z": 3.2
                     },
                     "depth": 3.2,
-
+                    "confidence": 0.95
                 },
                 {
                     "id": "obj_2",
@@ -158,7 +166,7 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
-
+                    "confidence": 0.92
                 },
                 {
                     "id": "obj_3",
@@ -170,6 +178,11 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
+                    "confidence": 0.89,
+                    "properties": {
+                        "suspended": True,
+                        "weight_category": "heavy"
+                    }
                 },
                 {
                     "id": "obj_4",
@@ -181,7 +194,7 @@ dummy_cv_results = {
                         "z": 3.0
                     },
                     "depth": 3.0,
-
+                    "confidence": 0.91
                 },
                 {
                     "id": "obj_5",
@@ -193,7 +206,7 @@ dummy_cv_results = {
                         "z": 3.2
                     },
                     "depth": 3.2,
-
+                    "confidence": 0.96
                 },
                 {
                     "id": "obj_6",
@@ -205,7 +218,7 @@ dummy_cv_results = {
                         "z": 3.2
                     },
                     "depth": 3.2,
-
+                    "confidence": 0.88
                 }
             ]
         }

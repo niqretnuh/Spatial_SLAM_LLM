@@ -27,7 +27,11 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentFrame = annotationData.frames[currentFrameIndex];
+  const currentFrame = annotationData.legacyFrames?.[currentFrameIndex] || {
+    frameNumber: 1,
+    imagePath: '',
+    objects: []
+  };
   
   // Color palette for bounding boxes
   const colors = [
@@ -54,23 +58,24 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
     }
   }, []);
 
-  // Navigate to previous frame
   const goToPrevFrame = useCallback(() => {
+    const frameCount = annotationData.legacyFrames?.length || annotationData.totalFrames || 0;
     setCurrentFrameIndex(prev => 
-      prev > 0 ? prev - 1 : annotationData.frames.length - 1
+      prev > 0 ? prev - 1 : frameCount - 1
     );
     setHoveredObject(null);
     setImageLoaded(false);
-  }, [annotationData.frames.length]);
+  }, [annotationData.legacyFrames?.length, annotationData.totalFrames]);
 
   // Navigate to next frame  
   const goToNextFrame = useCallback(() => {
+    const frameCount = annotationData.legacyFrames?.length || annotationData.totalFrames || 0;
     setCurrentFrameIndex(prev => 
-      prev < annotationData.frames.length - 1 ? prev + 1 : 0
+      prev < frameCount - 1 ? prev + 1 : 0
     );
     setHoveredObject(null);
     setImageLoaded(false);
-  }, [annotationData.frames.length]);
+  }, [annotationData.legacyFrames?.length, annotationData.totalFrames]);
 
   // Handle direct frame selection
   const selectFrame = useCallback((index: number) => {
@@ -138,7 +143,7 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
         <h3>JarVision</h3>
         <div className="header-controls">
           <div className="frame-counter">
-            Frame {currentFrameIndex + 1} of {annotationData.totalFrames}
+            Frame {currentFrameIndex + 1} of {annotationData.totalFrames || annotationData.total_frames || 0}
           </div>
           {onRestart && (
             <button 
@@ -227,7 +232,7 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
           </button>
           
           <div className="frame-dots">
-            {annotationData.frames.map((_, index) => (
+            {(annotationData.legacyFrames || Array(annotationData.totalFrames || 0).fill(null)).map((_, index) => (
               <button
                 key={index}
                 className={`frame-dot ${index === currentFrameIndex ? 'active' : ''}`}

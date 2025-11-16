@@ -16,6 +16,8 @@ from datetime import datetime
 import base64
 from io import BytesIO
 import dummy_data
+from fastapi.responses import FileResponse
+import numpy as np
 
 # Load environment variables
 load_dotenv()
@@ -67,6 +69,37 @@ class LLMChatResponse(BaseModel):
     toolCalls: Optional[List[ToolCall]] = []
     objects: Optional[List[Dict[str, Any]]] = []
     timestamp: str
+
+class MapPointsData(BaseModel):
+    """Represents the map points from ORB-SLAM dump_map_points.py output"""
+    map_points: List[List[float]]  # List of [x, y, z] coordinates
+    total_points: int
+    format: str  # e.g., "3-float", "4-float", "6-float"
+    metadata: Optional[Dict[str, Any]] = None
+
+class ObjectAnnotation(BaseModel):
+    """Represents an annotated object from the VLM object map"""
+    key: str  # Object identifier (e.g., "chair_0")
+    label: str  # Object label
+    center: List[float]  # [x, y, z] center coordinates
+    num_points: int
+    bbox_min: List[float]  # [x, y, z] minimum bounding box
+    bbox_max: List[float]  # [x, y, z] maximum bounding box
+    num_obs: int  # Number of observations
+    first_frame_idx: int
+    first_bbox: Optional[List[float]] = None  # [x1, y1, x2, y2] in pixels
+    first_frame_path: Optional[str] = None
+    position: List[float]  # Alias for center
+    size: List[float]  # [width, height, depth] in meters
+
+class SpatialMapResponse(BaseModel):
+    """Response containing spatial map data and object annotations"""
+    object_map: Dict[str, ObjectAnnotation]
+    total_objects: int
+    objects_by_label: Dict[str, int]
+    timestamp: str
+
+
 
 # Mock CV pipeline data (replace with real SLAM data later)
 CV_PIPELINE_DATA = dummy_data.dummy_cv_results
@@ -583,6 +616,215 @@ async def get_object_last_location(object_class: str):
 async def get_cv_pipeline_data():
     """Get raw CV pipeline data"""
     return CV_PIPELINE_DATA
+
+
+
+@app.post("/api/slam/map-points")
+async def upload_map_points(data: MapPointsData):
+    """
+    Endpoint to receive map points data from dump_map_points.py
+    
+    Expects data in the format:
+    {
+        "map_points": [[x1, y1, z1], [x2, y2, z2], ...],
+        "total_points": 1234,
+        "format": "3-float",
+        "metadata": {
+            "possible_interpretations": [["3-float", 1234], ["4-float", 925]],
+            "source": "orbSlam_Map",
+            "timestamp": "2025-11-16T12:00:00"
+        }
+    }
+    """
+    try:
+        logger.info(f"Received map points data: {data.total_points} points in {data.format} format")
+        
+        # Validate map points
+        if not data.map_points:
+            raise HTTPException(status_code=400, detail="Map points cannot be empty")
+        
+        if data.total_points < 50:
+            logger.warning(f"Map only has {data.total_points} points - SLAM likely didn't map correctly")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient map points ({data.total_points}). Need at least 50 points for a valid map."
+            )
+        
+        # Validate point format (should be 3D coordinates)
+        for i, point in enumerate(data.map_points[:5]):  # Check first 5 points
+            if len(point) != 3:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid point format at index {i}. Expected [x, y, z], got {len(point)} values"
+                )
+        
+        # Here you can store the map points or process them further
+        # For now, we'll just acknowledge receipt
+        
+        logger.info(f"Successfully validated {data.total_points} map points")
+        logger.info(f"First few points: {data.map_points[:min(5, len(data.map_points))]}")
+        
+        return {
+            "status": "success",
+            "message": f"Received and validated {data.total_points} map points",
+            "points_received": data.total_points,
+            "format": data.format,
+            "sample_points": data.map_points[:min(5, len(data.map_points))],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing map points: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing map points: {str(e)}")
+
+@app.post("/api/slam/spatial-map", response_model=SpatialMapResponse)
+async def upload_spatial_map(object_map: Dict[str, Dict[str, Any]]):
+    """
+    Endpoint to receive spatial object map data from vlm_object_map.py
+    
+    Expects data in the dictionary format produced by vlm_object_map.py:
+    {
+        "chair_0": {
+            "label": "chair",
+            "center": [x, y, z],
+            "indices": [array of point indices],
+            "num_points": 123,
+            "bbox_min": [x, y, z],
+            "bbox_max": [x, y, z],
+            "num_obs": 5,
+            "first_frame_idx": 10,
+            "first_bbox": [x1, y1, x2, y2],
+            "first_frame_path": "/path/to/image.jpg",
+            "position": [x, y, z],
+            "size": [width, height, depth],
+            "point_cloud": [[x, y, z], ...]
+        },
+        ...
+    }
+    """
+    try:
+        logger.info(f"Received spatial map with {len(object_map)} objects")
+        
+        # Validate and process object map
+        if not object_map:
+            raise HTTPException(status_code=400, detail="Object map cannot be empty")
+        
+        # Count objects by label
+        objects_by_label = {}
+        validated_objects = {}
+        
+        for key, obj_data in object_map.items():
+            # Validate required fields
+            required_fields = ["label", "center", "num_points", "bbox_min", "bbox_max", 
+                             "num_obs", "first_frame_idx", "position", "size"]
+            
+            missing_fields = [field for field in required_fields if field not in obj_data]
+            if missing_fields:
+                logger.warning(f"Object {key} missing fields: {missing_fields}")
+                continue
+            
+            # Count by label
+            label = obj_data["label"]
+            objects_by_label[label] = objects_by_label.get(label, 0) + 1
+            
+            # Convert numpy arrays to lists if needed
+            validated_obj = ObjectAnnotation(
+                key=key,
+                label=label,
+                center=obj_data["center"] if isinstance(obj_data["center"], list) else obj_data["center"].tolist(),
+                num_points=int(obj_data["num_points"]),
+                bbox_min=obj_data["bbox_min"] if isinstance(obj_data["bbox_min"], list) else obj_data["bbox_min"].tolist(),
+                bbox_max=obj_data["bbox_max"] if isinstance(obj_data["bbox_max"], list) else obj_data["bbox_max"].tolist(),
+                num_obs=int(obj_data["num_obs"]),
+                first_frame_idx=int(obj_data["first_frame_idx"]),
+                first_bbox=obj_data.get("first_bbox"),
+                first_frame_path=obj_data.get("first_frame_path"),
+                position=obj_data["position"] if isinstance(obj_data["position"], list) else obj_data["position"].tolist(),
+                size=obj_data["size"] if isinstance(obj_data["size"], list) else obj_data["size"].tolist()
+            )
+            
+            validated_objects[key] = validated_obj
+            
+            # Log sample object info
+            if len(validated_objects) <= 3:
+                logger.info(f"  {key}: {label} at {validated_obj.center}, {validated_obj.num_points} points, {validated_obj.num_obs} observations")
+        
+        logger.info(f"Successfully validated {len(validated_objects)} objects")
+        logger.info(f"Objects by label: {objects_by_label}")
+        
+        # TODO: Store this data in a database or cache for later retrieval
+        # For now, we'll just return it
+        
+        response = SpatialMapResponse(
+            object_map=validated_objects,
+            total_objects=len(validated_objects),
+            objects_by_label=objects_by_label,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing spatial map: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing spatial map: {str(e)}")
+
+@app.get("/api/slam/annotated-frame/{object_key}")
+async def get_annotated_frame(object_key: str, object_map_path: Optional[str] = None):
+    """
+    Endpoint to retrieve the first detection frame with annotation for a specific object
+    
+    Args:
+        object_key: The object identifier (e.g., "chair_0")
+        object_map_path: Optional path to the object map .npy file
+    
+    Returns:
+        The image file with the object's first detection bounding box
+    """
+    try:
+        # Load object map if path provided
+        if object_map_path and os.path.exists(object_map_path):
+            object_map = np.load(object_map_path, allow_pickle=True).item()
+        else:
+            # Use default path or return error
+            raise HTTPException(
+                status_code=400, 
+                detail="Object map path required. Please provide object_map_path parameter."
+            )
+        
+        # Get object data
+        if object_key not in object_map:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Object '{object_key}' not found in object map"
+            )
+        
+        obj_data = object_map[object_key]
+        
+        # Get first frame path
+        first_frame_path = obj_data.get("first_frame_path")
+        if not first_frame_path or not os.path.exists(first_frame_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"First frame image not found for object '{object_key}'"
+            )
+        
+        # Return the image file
+        return FileResponse(
+            first_frame_path,
+            media_type="image/jpeg",
+            filename=f"{object_key}_first_detection.jpg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving annotated frame: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
