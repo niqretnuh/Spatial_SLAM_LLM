@@ -265,10 +265,14 @@ export const AnnotationSlideshow: React.FC<AnnotationSlideshowProps> = ({
                 >
                   <div className="object-info">
                     <span className="object-name">{object.label}</span>
-                    <span className="object-distance">{object.distance.toFixed(1)}m</span>
+                    <span className="object-distance">
+                      {object.distance !== null ? `${object.distance.toFixed(1)}m` : 'N/A'}
+                    </span>
                   </div>
                   <div className="object-details">
-                    📐 {object.dimensions.length.toFixed(1)}m × {object.dimensions.width.toFixed(1)}m
+                    📐 {object.dimensions && object.dimensions.length !== null && object.dimensions.width !== null
+                      ? `${object.dimensions.length.toFixed(1)}m × ${object.dimensions.width.toFixed(1)}m`
+                      : 'Dimensions N/A'}
                   </div>
                   <div className="object-callout-preview">
                     {object.callout.length > 80 

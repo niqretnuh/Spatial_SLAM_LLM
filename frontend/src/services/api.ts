@@ -342,129 +342,202 @@ class ApiClient {
   // Get annotation response with frame-by-frame object annotations
   async getAnnotationResponse(_videoId?: string): Promise<ApiResponse<AnnotationResponse>> {
     try {
-      // For now, return mock data with dummy images
-      // In the future, this would make a real API call: `/annotations/${videoId}`
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-      
-      const mockData: AnnotationResponse = {
-        domain: 'construction_safety',
-        total_frames: 4,
-        summary: {},
-        frames: [], // Keep empty for JSONAnnotatedFrame compatibility
-        legacyFrames: [
+      // First attempt: try to fetch a JSON export of the alumni spatial model.
+      // If that is not available, attempt to fetch a .npy and parse it (best-effort).
+      let model: any = null;
+
+      // Try JSON first (convention: serve a JSON copy alongside the .npy for front-end consumption).
+      try {
+        const jsonRes = await fetch('/alumni_spatial_model.json');
+        if (jsonRes.ok) {
+          model = await jsonRes.json();
+        }
+      } catch (e) {
+        // ignore and try npy
+      }
+
+      // Try .npy using npyjs (best-effort). Many .npy files contain pickled/python objects
+      // which can't be parsed in JS. We attempt this step but fall back gracefully.
+      if (!model) {
+        try {
+          // npyjs may not have types; ignore TS here
+          // @ts-ignore
+          const { default: NpyJS } = await import('npyjs');
+          // @ts-ignore
+          const npy = new NpyJS();
+          const arr = await npy.load('/alumni_spatial_model.npy');
+
+          // If the .npy contains a textual JSON dump (common if user exported that way), try parse.
+          if (arr && arr.data) {
+            try {
+              const text = new TextDecoder().decode(new Uint8Array(arr.data.buffer));
+              model = JSON.parse(text);
+            } catch (e) {
+              // not JSON-text; can't parse complex python objects here
+              model = null;
+            }
+          }
+        } catch (e) {
+          // npy load failed; ignore and fall back to mock
+          // console.warn('NPY load failed', e);
+          model = null;
+        }
+      }
+
+      // Helper: normalize object map structure
+      const objectMap = model ? (model.object_map || model) : null;
+
+      // Allowed frame names (images are 1-based: frame_000001.png to frame_000047.png)
+      const allowedFrames: string[] = [];
+      for (let i = 1; i <= 47; i++) {
+        const name = `frame_${String(i).padStart(6, '0')}.png`;
+        allowedFrames.push(name);
+      }
+
+      // Collect counts per frame
+      const frameToObjects: Record<string, Array<any>> = {};
+      allowedFrames.forEach(f => (frameToObjects[f] = []));
+
+      if (objectMap && typeof objectMap === 'object') {
+        for (const [key, val] of Object.entries(objectMap)) {
+          const entry: any = val as any;
+
+          // Try to determine which frame this object first appears in
+          let frameName: string | null = null;
+          if (entry.first_frame_path && typeof entry.first_frame_path === 'string') {
+            const p: string = entry.first_frame_path;
+            for (const candidate of allowedFrames) {
+              if (p.includes(candidate) || p.endsWith(candidate)) {
+                frameName = candidate;
+                break;
+              }
+            }
+          }
+          if (!frameName && typeof entry.first_frame_idx === 'number') {
+            // Data uses 0-based indexing, but images are 1-based (frame_000001.png to frame_000047.png)
+            const idx = entry.first_frame_idx;
+            const candidates = [
+              `frame_${String(idx + 1).padStart(6, '0')}.png`,  // Convert 0-based to 1-based
+              `frame_${String(idx).padStart(6, '0')}.png`,      // Try original in case data is already 1-based
+            ];
+            for (const candidate of candidates) {
+              if (allowedFrames.includes(candidate)) {
+                frameName = candidate;
+                break;
+              }
+            }
+          }
+
+          if (frameName && frameToObjects[frameName]) {
+            // Calculate Euclidean distance from origin (0,0,0) to object center
+            const center = entry.center;
+            let distance = 0;
+            if (Array.isArray(center) && center.length >= 3) {
+              const [x, y, z] = center;
+              distance = Math.sqrt(x * x + y * y + z * z);
+            }
+
+            // Build a lightweight object entry, omitting `callout`
+            const obj = {
+              id: key,
+              label: entry.label || entry['label'] || 'unknown',
+              bbox: (Array.isArray(entry.first_bbox) ? entry.first_bbox : (entry.first_bbox ? Array.from(entry.first_bbox) : [0, 0, 0, 0])) as [number, number, number, number],
+              distance: distance,
+              dimensions: entry.size ? { length: entry.size[0] || 0, width: entry.size[1] || 0 } : { length: 0, width: 0 },
+              callout: '',
+            };
+            frameToObjects[frameName].push(obj);
+          }
+        }
+      }
+
+      // Compute top-5 frames by object count to cover most objects
+      const framesWithCounts = Object.entries(frameToObjects).map(([frame, objs]) => ({ frame, count: objs.length, objs }));
+      framesWithCounts.sort((a, b) => b.count - a.count || a.frame.localeCompare(b.frame));
+      const topFrames = framesWithCounts.filter(f => f.count > 0).slice(0, 5);
+
+      // If no model or no frames found, fall back to a small mock (without `callout`)
+      if (!topFrames || topFrames.length === 0) {
+        // small mock without callout fields
+        const mockLegacy = [
           {
             frameNumber: 1,
             imagePath: '/src/dummy/frame1.png',
             objects: [
-              {
-                id: 'obj_1_1',
-                label: 'ladder',
-                bbox: [100, 120, 280, 420],
-                distance: 2.8,
-                dimensions: { length: 3.2, width: 0.6 },
-                callout: 'Aluminum step ladder detected. Appears stable but positioned near electrical outlet - potential safety concern.'
-              },
-              {
-                id: 'obj_1_2', 
-                label: 'person',
-                bbox: [320, 80, 480, 380],
-                distance: 1.5,
-                dimensions: { length: 1.8, width: 0.5 },
-                callout: 'Worker in construction attire. No visible safety helmet - OSHA violation in construction zone.'
-              },
-              {
-                id: 'obj_1_3',
-                label: 'toolbox',
-                bbox: [50, 350, 150, 420],
-                distance: 3.1,
-                dimensions: { length: 0.8, width: 0.4 },
-                callout: 'Red metal toolbox properly secured. Contents appear organized and accessible.'
-              }
+              { id: 'obj_1_1', label: 'ladder', bbox: [100, 120, 280, 420] as [number, number, number, number], distance: 2.8, dimensions: { length: 3.2, width: 0.6 }, callout: '' },
+              { id: 'obj_1_2', label: 'person', bbox: [320, 80, 480, 380] as [number, number, number, number], distance: 1.5, dimensions: { length: 1.8, width: 0.5 }, callout: '' },
+              { id: 'obj_1_3', label: 'toolbox', bbox: [50, 350, 150, 420] as [number, number, number, number], distance: 3.1, dimensions: { length: 0.8, width: 0.4 }, callout: '' },
             ]
           },
           {
             frameNumber: 2,
             imagePath: '/src/dummy/frame2.png',
             objects: [
-              {
-                id: 'obj_2_1',
-                label: 'safety_cone',
-                bbox: [80, 280, 140, 400],
-                distance: 3.2,
-                dimensions: { length: 0.7, width: 0.7 },
-                callout: 'Orange safety cone positioned to mark hazard area. Proper placement for traffic control.'
-              },
-              {
-                id: 'obj_2_2',
-                label: 'excavator',
-                bbox: [200, 100, 500, 350],
-                distance: 8.5,
-                dimensions: { length: 6.2, width: 2.8 },
-                callout: 'Heavy machinery in operation. Ensure proper clearance and operator certification is current.'
-              }
+              { id: 'obj_2_1', label: 'safety_cone', bbox: [80, 280, 140, 400] as [number, number, number, number], distance: 3.2, dimensions: { length: 0.7, width: 0.7 }, callout: '' },
+              { id: 'obj_2_2', label: 'excavator', bbox: [200, 100, 500, 350] as [number, number, number, number], distance: 8.5, dimensions: { length: 6.2, width: 2.8 }, callout: '' },
             ]
           },
           {
             frameNumber: 3,
             imagePath: '/src/dummy/frame3.png',
             objects: [
-              {
-                id: 'obj_3_1',
-                label: 'hard_hat',
-                bbox: [180, 60, 220, 100],
-                distance: 2.1,
-                dimensions: { length: 0.3, width: 0.3 },
-                callout: 'Yellow hard hat detected. Properly worn and appears to meet safety standards.'
-              },
-              {
-                id: 'obj_3_2',
-                label: 'scaffolding',
-                bbox: [100, 50, 400, 350],
-                distance: 4.2,
-                dimensions: { length: 8.0, width: 2.0 },
-                callout: 'Multi-level scaffolding structure. Check stability connections and guard rail completeness.'
-              },
-              {
-                id: 'obj_3_3',
-                label: 'safety_vest',
-                bbox: [250, 180, 320, 280],
-                distance: 3.8,
-                dimensions: { length: 0.6, width: 0.5 },
-                callout: 'High-visibility safety vest worn correctly. Reflective strips clearly visible.'
-              }
+              { id: 'obj_3_1', label: 'hard_hat', bbox: [180, 60, 220, 100] as [number, number, number, number], distance: 2.1, dimensions: { length: 0.3, width: 0.3 }, callout: '' },
+              { id: 'obj_3_2', label: 'scaffolding', bbox: [100, 50, 400, 350] as [number, number, number, number], distance: 4.2, dimensions: { length: 8.0, width: 2.0 }, callout: '' },
+              { id: 'obj_3_3', label: 'safety_vest', bbox: [250, 180, 320, 280] as [number, number, number, number], distance: 3.8, dimensions: { length: 0.6, width: 0.5 }, callout: '' },
             ]
           },
           {
             frameNumber: 4,
             imagePath: '/src/dummy/frame4.png',
             objects: [
-              {
-                id: 'obj_4_1',
-                label: 'power_tool',
-                bbox: [150, 200, 250, 280],
-                distance: 1.8,
-                dimensions: { length: 0.4, width: 0.15 },
-                callout: 'Electric drill in use. Cord management appears adequate, proper grip observed.'
-              },
-              {
-                id: 'obj_4_2',
-                label: 'warning_sign',
-                bbox: [320, 120, 420, 220],
-                distance: 5.5,
-                dimensions: { length: 0.8, width: 0.6 },
-                callout: 'Construction warning sign properly posted. Text legible from safe distance.'
-              }
+              { id: 'obj_4_1', label: 'power_tool', bbox: [150, 200, 250, 280] as [number, number, number, number], distance: 1.8, dimensions: { length: 0.4, width: 0.15 }, callout: '' },
+              { id: 'obj_4_2', label: 'warning_sign', bbox: [320, 120, 420, 220] as [number, number, number, number], distance: 5.5, dimensions: { length: 0.8, width: 0.6 }, callout: '' },
             ]
           }
-        ],
-        totalFrames: 4
+        ];
+
+        const mockData: AnnotationResponse = {
+          domain: 'construction_safety',
+          total_frames: mockLegacy.length,
+          summary: {},
+          frames: [],
+          legacyFrames: mockLegacy,
+          totalFrames: mockLegacy.length,
+        };
+
+        return { success: true, data: mockData, timestamp: new Date().toISOString() };
+      }
+
+      // Map selected frames to legacyFrames structure; sort chronologically by frame number
+      const selected = topFrames
+        .map(f => {
+          const match = f.frame.match(/frame_(\d+)\.png$/);
+          const frameNumber = match ? parseInt(match[1], 10) : 0;
+          return {
+            frame: f.frame,
+            frameNumber,
+            objects: f.objs,
+          };
+        })
+        .filter(f => f.frameNumber >= 1)
+        .sort((a, b) => a.frameNumber - b.frameNumber);
+
+      const legacyFrames = selected.map(s => ({
+        frameNumber: s.frameNumber,
+        imagePath: `/alumni_images/${s.frame}`,
+        objects: s.objects,
+      }));
+
+      const responseData: AnnotationResponse = {
+        domain: 'alumni_spatial_model',
+        total_frames: legacyFrames.length,
+        summary: {},
+        frames: [],
+        legacyFrames,
+        totalFrames: legacyFrames.length,
       };
 
-      return {
-        success: true,
-        data: mockData,
-        timestamp: new Date().toISOString(),
-      };
+      return { success: true, data: responseData, timestamp: new Date().toISOString() };
     } catch (error: any) {
       return {
         success: false,
