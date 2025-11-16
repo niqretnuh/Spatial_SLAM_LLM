@@ -8,7 +8,6 @@ dummy_cv_results = {
     "frames": [
         {
             "frame_number": 0,
-            "time": 0.0,
             "objects": [
                 {
                     "id": "obj_1",
@@ -20,7 +19,6 @@ dummy_cv_results = {
                         "z": 3.2   # meters away from camera (depth)
                     },
                     "depth": 3.2,
-                    "confidence": 0.95
                 },
                 {
                     "id": "obj_2",
@@ -32,7 +30,6 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
-                    "confidence": 0.92
                 },
                 {
                     "id": "obj_3",
@@ -44,11 +41,6 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
-                    "confidence": 0.89,
-                    "properties": {
-                        "suspended": True,
-                        "weight_category": "heavy"
-                    }
                 },
                 {
                     "id": "obj_4",
@@ -72,7 +64,6 @@ dummy_cv_results = {
                         "z": 4.0
                     },
                     "depth": 4.0,
-                    "confidence": 0.97
                 }
             ]
         },
@@ -90,7 +81,6 @@ dummy_cv_results = {
                         "z": 3.2
                     },
                     "depth": 3.2,
-                    "confidence": 0.95
                 },
                 {
                     "id": "obj_2",
@@ -102,7 +92,6 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
-                    "confidence": 0.92
                 },
                 {
                     "id": "obj_3",
@@ -115,10 +104,6 @@ dummy_cv_results = {
                     },
                     "depth": 5.0,
                     "confidence": 0.89,
-                    "properties": {
-                        "suspended": True,
-                        "weight_category": "heavy"
-                    }
                 },
                 {
                     "id": "obj_4",
@@ -129,8 +114,7 @@ dummy_cv_results = {
                         "y": 2.3,
                         "z": 3.0
                     },
-                    "depth": 3.0,
-                    "confidence": 0.91
+                    "depth": 3.0
                 },
                 {
                     "id": "obj_5",
@@ -141,8 +125,8 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.3
                     },
-                    "depth": 3.3,
-                    "confidence": 0.97
+                    "depth": 3.3
+
                 }
             ]
         },
@@ -159,8 +143,7 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.2
                     },
-                    "depth": 3.2,
-                    "confidence": 0.95
+                    "depth": 3.2
                 },
                 {
                     "id": "obj_2",
@@ -171,8 +154,7 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.5
                     },
-                    "depth": 3.5,
-                    "confidence": 0.92
+                    "depth": 3.5
                 },
                 {
                     "id": "obj_3",
@@ -183,12 +165,7 @@ dummy_cv_results = {
                         "y": 2.8,
                         "z": 5.0
                     },
-                    "depth": 5.0,
-                    "confidence": 0.89,
-                    "properties": {
-                        "suspended": True,
-                        "weight_category": "heavy"
-                    }
+                    "depth": 5.0
                 },
                 {
                     "id": "obj_4",
@@ -199,8 +176,7 @@ dummy_cv_results = {
                         "y": 2.3,
                         "z": 3.0
                     },
-                    "depth": 3.0,
-                    "confidence": 0.91
+                    "depth": 3.0
                 },
                 {
                     "id": "obj_5",
@@ -211,8 +187,7 @@ dummy_cv_results = {
                         "y": 1.8,  
                         "z": 3.2
                     },
-                    "depth": 3.2,
-                    "confidence": 0.96
+                    "depth": 3.2
                 },
                 {
                     "id": "obj_6",
@@ -223,8 +198,7 @@ dummy_cv_results = {
                         "y": 2.1,  
                         "z": 3.2
                     },
-                    "depth": 3.2,
-                    "confidence": 0.88
+                    "depth": 3.2
                 }
             ]
         }
