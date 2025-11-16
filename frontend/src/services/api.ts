@@ -340,7 +340,7 @@ class ApiClient {
   }
 
   // Get annotation response with frame-by-frame object annotations
-  async getAnnotationResponse(_videoId?: string): Promise<ApiResponse<AnnotationResponse>> {
+  async getAnnotationResponse(sessionId: string = 'default_session'): Promise<ApiResponse<AnnotationResponse>> {
     try {
       // First attempt: try to fetch a JSON export of the alumni spatial model.
       // If that is not available, attempt to fetch a .npy and parse it (best-effort).

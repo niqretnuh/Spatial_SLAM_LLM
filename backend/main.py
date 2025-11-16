@@ -16,6 +16,8 @@ from datetime import datetime
 import base64
 from io import BytesIO
 import dummy_data
+from fastapi.responses import FileResponse
+import numpy as np
 
 # Load environment variables
 load_dotenv()
@@ -68,6 +70,41 @@ class LLMChatResponse(BaseModel):
     objects: Optional[List[Dict[str, Any]]] = []
     timestamp: str
 
+class MapPointsData(BaseModel):
+    """Represents the map points from ORB-SLAM dump_map_points.py output"""
+    map_points: List[List[float]]  # List of [x, y, z] coordinates
+    total_points: int
+    format: str  # e.g., "3-float", "4-float", "6-float"
+    metadata: Optional[Dict[str, Any]] = None
+
+class ObjectAnnotation(BaseModel):
+    """Represents an annotated object from the VLM object map"""
+    key: str  # Object identifier (e.g., "chair_0")
+    label: str  # Object label
+    center: List[float]  # [x, y, z] center coordinates
+    num_points: int
+    bbox_min: List[float]  # [x, y, z] minimum bounding box
+    bbox_max: List[float]  # [x, y, z] maximum bounding box
+    num_obs: int  # Number of observations
+    first_frame_idx: int
+    first_bbox: Optional[List[float]] = None  # [x1, y1, x2, y2] in pixels
+    first_frame_path: Optional[str] = None
+    position: List[float]  # Alias for center
+    size: List[float]  # [width, height, depth] in meters
+
+class SpatialMapResponse(BaseModel):
+    """Response containing spatial map data and object annotations"""
+    object_map: Dict[str, ObjectAnnotation]
+    total_objects: int
+    objects_by_label: Dict[str, int]
+    timestamp: str
+
+
+
+# In-memory storage for spatial data (TODO: Replace with Redis/database)
+# This stores the spatial context that's shared between chat and annotation endpoints
+SPATIAL_CONTEXT_STORE: Dict[str, Dict[str, Any]] = {}
+
 # Mock CV pipeline data (replace with real SLAM data later)
 CV_PIPELINE_DATA = dummy_data.dummy_cv_results
 
@@ -97,55 +134,156 @@ TOOLS = [
     }
 ]
 
+# Helper functions for spatial context management
+def get_spatial_context(session_id: str) -> Dict[str, Any]:
+    """Retrieve spatial context for a session"""
+    return SPATIAL_CONTEXT_STORE.get(session_id, {})
+
+def store_spatial_context(session_id: str, context_data: Dict[str, Any]):
+    """Store spatial context for a session"""
+    if session_id not in SPATIAL_CONTEXT_STORE:
+        SPATIAL_CONTEXT_STORE[session_id] = {}
+    
+    SPATIAL_CONTEXT_STORE[session_id].update(context_data)
+    SPATIAL_CONTEXT_STORE[session_id]["last_updated"] = datetime.utcnow().isoformat()
+    logger.info(f"Stored spatial context for session {session_id}")
+
+def get_or_create_session_id(video_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
+    """Generate or retrieve a session ID for context tracking"""
+    if video_id:
+        return f"session_{video_id}"
+    elif user_id:
+        return f"session_user_{user_id}"
+    else:
+        return f"session_{datetime.utcnow().timestamp()}"
+
+def format_spatial_map_for_context(object_map: Dict[str, Any]) -> str:
+    """Format spatial map data for LLM context"""
+    if not object_map:
+        return ""
+    
+    formatted = "## Spatial Object Map\n\n"
+    
+    # Group by label
+    objects_by_label = {}
+    for key, obj in object_map.items():
+        label = obj.get("label", "unknown")
+        if label not in objects_by_label:
+            objects_by_label[label] = []
+        objects_by_label[label].append((key, obj))
+    
+    for label, objects in sorted(objects_by_label.items()):
+        formatted += f"### {label.capitalize()} ({len(objects)} detected):\n"
+        for key, obj in objects:
+            center = obj.get("center", [0, 0, 0])
+            formatted += f"  - {key}: Position ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})m"
+            if "first_frame_idx" in obj:
+                formatted += f" | First seen: Frame {obj['first_frame_idx']}"
+            formatted += "\n"
+        formatted += "\n"
+    
+    return formatted
+
 # Tool execution functions
-def execute_get_object_location(object_class: str) -> Dict[str, Any]:
-    """Find object by class in the CV pipeline data"""
+def execute_get_object_location(object_class: str, session_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Find object by class in the CV pipeline data and spatial context"""
     found_objects = []
     
-    # Search through all frames for the object
+    # First check session context for spatial map data
+    if session_context and "spatial_map" in session_context:
+        spatial_map = session_context["spatial_map"]
+        for key, obj in spatial_map.items():
+            if obj.get("label", "").lower() == object_class.lower():
+                found_objects.append({
+                    "object_key": key,
+                    "label": obj["label"],
+                    "coordinates": {
+                        "x": obj["center"][0],
+                        "y": obj["center"][1],
+                        "z": obj["center"][2]
+                    },
+                    "first_frame_idx": obj.get("first_frame_idx", 0),
+                    "num_observations": obj.get("num_obs", 0),
+                    "source": "spatial_map"
+                })
+    
+    # Also search through CV pipeline data
     for frame in CV_PIPELINE_DATA["frames"]:
         for obj in frame["objects"]:
             if obj["label"].lower() == object_class.lower():
                 found_objects.append({
                     "frame_number": frame["frame_number"],
-                    "time": frame["time"],
+                    "time": frame.get("time", frame["frame_number"] / 30.0),  # Fallback to frame/fps
                     "object_id": obj["id"],
                     "label": obj["label"],
                     "coordinates": obj["xyz_coordinates"],
                     "depth": obj["depth"],
-                    "confidence": obj["confidence"]
+                    "confidence": obj.get("confidence", 0),
+                    "source": "cv_pipeline"
                 })
     
     if found_objects:
-        # Return the most recent occurrence (last frame)
-        latest = found_objects[-1]
-        return {
+        # Return the most recent or most reliable occurrence
+        result = {
             "found": True,
-            "object": latest,
-            "coordinates": latest["coordinates"],
-            "message": f"Found {object_class} at frame {latest['frame_number']} (t={latest['time']}s) at position x={latest['coordinates']['x']}m, y={latest['coordinates']['y']}m, z={latest['coordinates']['z']}m"
+            "objects": found_objects,
+            "count": len(found_objects),
+            "message": f"Found {len(found_objects)} instance(s) of {object_class}"
         }
+        
+        # Add details about the first/most prominent instance
+        primary = found_objects[0]
+        coords = primary["coordinates"]
+        result["primary_location"] = coords
+        
+        if "frame_number" in primary:
+            result["message"] += f" at frame {primary['frame_number']}"
+        elif "first_frame_idx" in primary:
+            result["message"] += f" first seen at frame {primary['first_frame_idx']}"
+        
+        return result
     
     return {
         "found": False,
-        "message": f"No {object_class} found in the video tracking data"
+        "message": f"No {object_class} found in the tracking data or spatial map"
     }
 
-def execute_list_all_objects() -> Dict[str, Any]:
-    """Return all tracked objects from all frames"""
+def execute_list_all_objects(session_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Return all tracked objects from all frames and spatial context"""
     all_objects = []
     unique_labels = set()
     
+    # Get objects from spatial map if available
+    if session_context and "spatial_map" in session_context:
+        spatial_map = session_context["spatial_map"]
+        for key, obj in spatial_map.items():
+            label = obj.get("label", "unknown")
+            unique_labels.add(label)
+            all_objects.append({
+                "object_key": key,
+                "label": label,
+                "coordinates": {
+                    "x": obj["center"][0],
+                    "y": obj["center"][1],
+                    "z": obj["center"][2]
+                },
+                "first_frame": obj.get("first_frame_idx", 0),
+                "num_observations": obj.get("num_obs", 0),
+                "source": "spatial_map"
+            })
+    
+    # Get objects from CV pipeline
     for frame in CV_PIPELINE_DATA["frames"]:
         for obj in frame["objects"]:
             unique_labels.add(obj["label"])
             all_objects.append({
                 "frame_number": frame["frame_number"],
-                "time": frame["time"],
+                "time": frame.get("time", frame["frame_number"] / 30.0),  # Fallback to frame/fps
                 "object_id": obj["id"],
                 "label": obj["label"],
                 "coordinates": obj["xyz_coordinates"],
-                "depth": obj["depth"]
+                "depth": obj["depth"],
+                "source": "cv_pipeline"
             })
     
     return {
@@ -153,15 +291,15 @@ def execute_list_all_objects() -> Dict[str, Any]:
         "unique_objects": list(unique_labels),
         "total_detections": len(all_objects),
         "unique_count": len(unique_labels),
-        "message": f"Currently tracking {len(unique_labels)} unique object types across {len(CV_PIPELINE_DATA['frames'])} frames"
+        "message": f"Currently tracking {len(unique_labels)} unique object types with {len(all_objects)} total detections"
     }
 
-def execute_tool(tool_name: str, tool_input: Dict[str, Any]) -> Any:
+def execute_tool(tool_name: str, tool_input: Dict[str, Any], session_context: Optional[Dict[str, Any]] = None) -> Any:
     """Execute a tool and return its result"""
     if tool_name == "get_object_location":
-        return execute_get_object_location(tool_input["object_class"])
+        return execute_get_object_location(tool_input["object_class"], session_context)
     elif tool_name == "list_all_objects":
-        return execute_list_all_objects()
+        return execute_list_all_objects(session_context)
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -208,6 +346,11 @@ async def chat_with_llm(request: LLMChatRequest):
         logger.info(f"Received chat request: {request.message}")
         logger.info(f"Spatial data provided: {len(request.spatial_data) if request.spatial_data else 0} objects")
         
+        # Get or create session for context management
+        session_id = get_or_create_session_id(request.video_id, request.userId)
+        session_context = get_spatial_context(session_id)
+        logger.info(f"Using session ID: {session_id}")
+        
         # Build conversation history
         messages = []
         
@@ -229,29 +372,31 @@ async def chat_with_llm(request: LLMChatRequest):
             current_message_content = f"{current_message_content}\n\n{spatial_context}"
             logger.info(f"Added spatial context with {len(request.spatial_data)} objects")
         
+        # Add spatial map context if available in session
+        if "spatial_map" in session_context:
+            map_context = format_spatial_map_for_context(session_context["spatial_map"])
+            current_message_content = f"{current_message_content}\n\n{map_context}"
+            logger.info(f"Added spatial map context from session")
+        
         # Add current message
         messages.append({
             "role": "user",
             "content": current_message_content
         })
         
-        # Enhanced system prompt for spatial awareness and safety analysis
+        # TODO: Enhance system prompt for spatial awareness and safety analysis
         system_prompt = """You are a safety analysis assistant with access to a 3D spatial tracking system.
-        You can analyze workplace environments for OSHA compliance and safety hazards.
+        You can analyze the enviroment for safety hazards, calling out what to look out for.
         
         You have access to:
         - Frame-by-frame object tracking from video with 3D coordinates (x, y, z in meters)
         - Object labels (e.g., ladder, doorway, heavy_equipment, overhead_shelf, worker, hard_hat)
         - Spatial relationships between objects
-        
         2. Use get_object_location to find specific objects and their coordinates
         3. Analyze spatial relationships: calculate distances, check clearances, identify hazards
-        4. Consider OSHA regulations for construction/workplace safety
-        
-        
-        
-        Provide specific, actionable safety insights with measurements and OSHA citations when applicable.
-        your output should be"""
+        DO NOT OUTPUT object locations, only how far they are from us (reference point 0,0,0)
+        Provide specific, actionable safety insights with measurements when applicable.
+        output short, concise answers under 100 words."""
 
         # Call Claude API with tools
         tool_calls_made = []
@@ -281,8 +426,8 @@ async def chat_with_llm(request: LLMChatRequest):
                     
                     logger.info(f"Tool call: {tool_name} with input: {tool_input}")
                     
-                    # Execute the tool
-                    tool_result = execute_tool(tool_name, tool_input)
+                    # Execute the tool with session context
+                    tool_result = execute_tool(tool_name, tool_input, session_context)
                     
                     # Track tool call
                     tool_call = ToolCall(
@@ -366,6 +511,11 @@ async def chat_with_llm_multimodal(
     try:
         logger.info(f"Received multimodal chat request: {message}")
         
+        # Get or create session for context management
+        session_id = get_or_create_session_id(video_id, userId)
+        session_context = get_spatial_context(session_id)
+        logger.info(f"Using session ID: {session_id}")
+        
         # Parse spatial data
         parsed_spatial_data = []
         if spatial_data:
@@ -444,6 +594,12 @@ async def chat_with_llm_multimodal(
             spatial_context = format_spatial_data_for_llm(parsed_spatial_data)
             text_content = f"{message}\n\n{spatial_context}"
         
+        # Add spatial map context if available in session
+        if "spatial_map" in session_context:
+            map_context = format_spatial_map_for_context(session_context["spatial_map"])
+            text_content = f"{text_content}\n\n{map_context}"
+            logger.info(f"Added spatial map context from session")
+        
         message_content.append({
             "type": "text",
             "text": text_content
@@ -500,8 +656,8 @@ async def chat_with_llm_multimodal(
                     
                     logger.info(f"Tool call: {tool_name} with input: {tool_input}")
                     
-                    # Execute the tool
-                    tool_result = execute_tool(tool_name, tool_input)
+                    # Execute the tool with session context
+                    tool_result = execute_tool(tool_name, tool_input, session_context)
                     
                     # Track tool call
                     tool_call = ToolCall(
@@ -583,6 +739,306 @@ async def get_object_last_location(object_class: str):
 async def get_cv_pipeline_data():
     """Get raw CV pipeline data"""
     return CV_PIPELINE_DATA
+
+
+
+@app.post("/api/slam/map-points")
+async def upload_map_points(data: MapPointsData):
+    """
+    Endpoint to receive map points data from dump_map_points.py
+    
+    Expects data in the format:
+    {
+        "map_points": [[x1, y1, z1], [x2, y2, z2], ...],
+        "total_points": 1234,
+        "format": "3-float",
+        "metadata": {
+            "possible_interpretations": [["3-float", 1234], ["4-float", 925]],
+            "source": "orbSlam_Map",
+            "timestamp": "2025-11-16T12:00:00"
+        }
+    }
+    """
+    try:
+        logger.info(f"Received map points data: {data.total_points} points in {data.format} format")
+        
+        # Validate map points
+        if not data.map_points:
+            raise HTTPException(status_code=400, detail="Map points cannot be empty")
+        
+        if data.total_points < 50:
+            logger.warning(f"Map only has {data.total_points} points - SLAM likely didn't map correctly")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient map points ({data.total_points}). Need at least 50 points for a valid map."
+            )
+        
+        # Validate point format (should be 3D coordinates)
+        for i, point in enumerate(data.map_points[:5]):  # Check first 5 points
+            if len(point) != 3:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid point format at index {i}. Expected [x, y, z], got {len(point)} values"
+                )
+        
+        # Here you can store the map points or process them further
+        # For now, we'll just acknowledge receipt
+        
+        logger.info(f"Successfully validated {data.total_points} map points")
+        logger.info(f"First few points: {data.map_points[:min(5, len(data.map_points))]}")
+        
+        return {
+            "status": "success",
+            "message": f"Received and validated {data.total_points} map points",
+            "points_received": data.total_points,
+            "format": data.format,
+            "sample_points": data.map_points[:min(5, len(data.map_points))],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing map points: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing map points: {str(e)}")
+
+@app.post("/api/slam/spatial-map", response_model=SpatialMapResponse)
+async def upload_spatial_map(object_map: Dict[str, Dict[str, Any]]):
+    """
+    Endpoint to receive spatial object map data from vlm_object_map.py
+    
+    Expects data in the dictionary format produced by vlm_object_map.py:
+    {
+        "chair_0": {
+            "label": "chair",
+            "center": [x, y, z],
+            "indices": [array of point indices],
+            "num_points": 123,
+            "bbox_min": [x, y, z],
+            "bbox_max": [x, y, z],
+            "num_obs": 5,
+            "first_frame_idx": 10,
+            "first_bbox": [x1, y1, x2, y2],
+            "first_frame_path": "/path/to/image.jpg",
+            "position": [x, y, z],
+            "size": [width, height, depth],
+            "point_cloud": [[x, y, z], ...]
+        },
+        ...
+    }
+    """
+    try:
+        logger.info(f"Received spatial map with {len(object_map)} objects")
+        
+        # Validate and process object map
+        if not object_map:
+            raise HTTPException(status_code=400, detail="Object map cannot be empty")
+        
+        # Count objects by label
+        objects_by_label = {}
+        validated_objects = {}
+        
+        for key, obj_data in object_map.items():
+            # Validate required fields
+            required_fields = ["label", "center", "num_points", "bbox_min", "bbox_max", 
+                             "num_obs", "first_frame_idx", "position", "size"]
+            
+            missing_fields = [field for field in required_fields if field not in obj_data]
+            if missing_fields:
+                logger.warning(f"Object {key} missing fields: {missing_fields}")
+                continue
+            
+            # Count by label
+            label = obj_data["label"]
+            objects_by_label[label] = objects_by_label.get(label, 0) + 1
+            
+            # Convert numpy arrays to lists if needed
+            validated_obj = ObjectAnnotation(
+                key=key,
+                label=label,
+                center=obj_data["center"] if isinstance(obj_data["center"], list) else obj_data["center"].tolist(),
+                num_points=int(obj_data["num_points"]),
+                bbox_min=obj_data["bbox_min"] if isinstance(obj_data["bbox_min"], list) else obj_data["bbox_min"].tolist(),
+                bbox_max=obj_data["bbox_max"] if isinstance(obj_data["bbox_max"], list) else obj_data["bbox_max"].tolist(),
+                num_obs=int(obj_data["num_obs"]),
+                first_frame_idx=int(obj_data["first_frame_idx"]),
+                first_bbox=obj_data.get("first_bbox"),
+                first_frame_path=obj_data.get("first_frame_path"),
+                position=obj_data["position"] if isinstance(obj_data["position"], list) else obj_data["position"].tolist(),
+                size=obj_data["size"] if isinstance(obj_data["size"], list) else obj_data["size"].tolist()
+            )
+            
+            validated_objects[key] = validated_obj
+            
+            # Log sample object info
+            if len(validated_objects) <= 3:
+                logger.info(f"  {key}: {label} at {validated_obj.center}, {validated_obj.num_points} points, {validated_obj.num_obs} observations")
+        
+        logger.info(f"Successfully validated {len(validated_objects)} objects")
+        logger.info(f"Objects by label: {objects_by_label}")
+        
+        # Store this data in session context for chat/annotation integration
+        # Generate a session ID based on the object map structure
+        # Use the first object's first_frame_path to infer a session/video ID
+        session_id = "default_session"
+        if validated_objects:
+            first_obj = list(validated_objects.values())[0]
+            if hasattr(first_obj, 'first_frame_path') and first_obj.first_frame_path:
+                # Extract video/session ID from path
+                import hashlib
+                session_id = f"session_{hashlib.md5(first_obj.first_frame_path.encode()).hexdigest()[:12]}"
+        
+        # Store the spatial map in the session context
+        store_spatial_context(session_id, {
+            "spatial_map": {key: obj.dict() for key, obj in validated_objects.items()},
+            "objects_by_label": objects_by_label,
+            "total_objects": len(validated_objects)
+        })
+        
+        response = SpatialMapResponse(
+            object_map=validated_objects,
+            total_objects=len(validated_objects),
+            objects_by_label=objects_by_label,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+        logger.info(f"Stored spatial map in session: {session_id}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing spatial map: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing spatial map: {str(e)}")
+
+@app.get("/api/annotations/{session_id}")
+async def get_annotations_with_callouts(session_id: str = "default_session"):
+    """
+    Get frame annotations with LLM-generated callouts for the slideshow.
+    This integrates spatial map data with callout generation for each detected object.
+    """
+    try:
+        # Get spatial context for the session
+        session_context = get_spatial_context(session_id)
+        
+        if not session_context or "spatial_map" not in session_context:
+            # Return empty/mock data if no spatial map available
+            raise HTTPException(
+                status_code=404,
+                detail=f"No spatial map data found for session {session_id}"
+            )
+        
+        spatial_map = session_context["spatial_map"]
+        
+        # Group objects by frame
+        frames_data = {}
+        for key, obj in spatial_map.items():
+            frame_idx = obj.get("first_frame_idx", 0)
+            if frame_idx not in frames_data:
+                frames_data[frame_idx] = []
+            
+            # Convert spatial object to annotation format
+            annotated_obj = {
+                "id": key,
+                "label": obj.get("label", "unknown"),
+                "bbox": obj.get("first_bbox", [0, 0, 100, 100]),
+                "distance": float(np.linalg.norm(obj.get("center", [0, 0, 0]))),
+                "dimensions": {
+                    "length": float(obj.get("size", [0, 0, 0])[0]),
+                    "width": float(obj.get("size", [0, 0, 0])[1]),
+                },
+                "callout": f"{obj.get('label', 'Object').capitalize()} detected at position ({obj.get('center', [0,0,0])[0]:.2f}, {obj.get('center', [0,0,0])[1]:.2f}, {obj.get('center', [0,0,0])[2]:.2f})m. Observed {obj.get('num_obs', 0)} times."
+            }
+            frames_data[frame_idx].append(annotated_obj)
+        
+        # Build legacy frame format for the slideshow
+        legacy_frames = []
+        for frame_idx in sorted(frames_data.keys()):
+            # Get image path from first object in frame
+            objects = frames_data[frame_idx]
+            image_path = ""
+            if objects:
+                obj_key = objects[0]["id"]
+                if obj_key in spatial_map:
+                    image_path = spatial_map[obj_key].get("first_frame_path", "")
+            
+            legacy_frames.append({
+                "frameNumber": frame_idx,
+                "imagePath": image_path,
+                "objects": objects
+            })
+        
+        response = {
+            "domain": "spatial_slam",
+            "total_frames": len(legacy_frames),
+            "summary": session_context.get("objects_by_label", {}),
+            "frames": [],  # Empty for JSON annotation compatibility
+            "legacyFrames": legacy_frames,
+            "totalFrames": len(legacy_frames)
+        }
+        
+        logger.info(f"Returning {len(legacy_frames)} annotated frames for session {session_id}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating annotations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.get("/api/slam/annotated-frame/{object_key}")
+async def get_annotated_frame(object_key: str, object_map_path: Optional[str] = None):
+    """
+    Endpoint to retrieve the first detection frame with annotation for a specific object
+    
+    Args:
+        object_key: The object identifier (e.g., "chair_0")
+        object_map_path: Optional path to the object map .npy file
+    
+    Returns:
+        The image file with the object's first detection bounding box
+    """
+    try:
+        # Load object map if path provided
+        if object_map_path and os.path.exists(object_map_path):
+            object_map = np.load(object_map_path, allow_pickle=True).item()
+        else:
+            # Use default path or return error
+            raise HTTPException(
+                status_code=400, 
+                detail="Object map path required. Please provide object_map_path parameter."
+            )
+        
+        # Get object data
+        if object_key not in object_map:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Object '{object_key}' not found in object map"
+            )
+        
+        obj_data = object_map[object_key]
+        
+        # Get first frame path
+        first_frame_path = obj_data.get("first_frame_path")
+        if not first_frame_path or not os.path.exists(first_frame_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"First frame image not found for object '{object_key}'"
+            )
+        
+        # Return the image file
+        return FileResponse(
+            first_frame_path,
+            media_type="image/jpeg",
+            filename=f"{object_key}_first_detection.jpg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving annotated frame: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn

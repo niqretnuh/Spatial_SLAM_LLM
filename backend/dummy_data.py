@@ -1,13 +1,13 @@
 # Dummy CV Pipeline Data for Testing LLM Safety Analysis
-# Represents a workplace with multiple OSHA safety violations
 
 dummy_cv_results = {
     "video_id": "workplace_safety_001",
-    "fps": 30,
     "duration": 10.0,
+    "fps": 30.0,
     "frames": [
         {
             "frame_number": 0,
+            "time": 0.0,
             "objects": [
                 {
                     "id": "obj_1",
@@ -19,6 +19,7 @@ dummy_cv_results = {
                         "z": 3.2   # meters away from camera (depth)
                     },
                     "depth": 3.2,
+
                 },
                 {
                     "id": "obj_2",
@@ -30,6 +31,7 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
+
                 },
                 {
                     "id": "obj_3",
@@ -41,6 +43,7 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
+                    
                 },
                 {
                     "id": "obj_4",
@@ -52,7 +55,6 @@ dummy_cv_results = {
                         "z": 3.0   
                     },
                     "depth": 3.0,
-                    "confidence": 0.91
                 },
                 {
                     "id": "obj_5",
@@ -92,6 +94,7 @@ dummy_cv_results = {
                         "z": 3.5
                     },
                     "depth": 3.5,
+
                 },
                 {
                     "id": "obj_3",
@@ -103,7 +106,7 @@ dummy_cv_results = {
                         "z": 5.0
                     },
                     "depth": 5.0,
-                    "confidence": 0.89,
+                    
                 },
                 {
                     "id": "obj_4",
@@ -114,7 +117,8 @@ dummy_cv_results = {
                         "y": 2.3,
                         "z": 3.0
                     },
-                    "depth": 3.0
+                    "depth": 3.0,
+
                 },
                 {
                     "id": "obj_5",
@@ -125,7 +129,7 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.3
                     },
-                    "depth": 3.3
+                    "depth": 3.3,
 
                 }
             ]
@@ -143,7 +147,8 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.2
                     },
-                    "depth": 3.2
+                    "depth": 3.2,
+
                 },
                 {
                     "id": "obj_2",
@@ -154,7 +159,8 @@ dummy_cv_results = {
                         "y": 0.0,
                         "z": 3.5
                     },
-                    "depth": 3.5
+                    "depth": 3.5,
+
                 },
                 {
                     "id": "obj_3",
@@ -165,7 +171,7 @@ dummy_cv_results = {
                         "y": 2.8,
                         "z": 5.0
                     },
-                    "depth": 5.0
+                    "depth": 5.0,
                 },
                 {
                     "id": "obj_4",
@@ -176,7 +182,8 @@ dummy_cv_results = {
                         "y": 2.3,
                         "z": 3.0
                     },
-                    "depth": 3.0
+                    "depth": 3.0,
+
                 },
                 {
                     "id": "obj_5",
@@ -187,7 +194,8 @@ dummy_cv_results = {
                         "y": 1.8,  
                         "z": 3.2
                     },
-                    "depth": 3.2
+                    "depth": 3.2,
+
                 },
                 {
                     "id": "obj_6",
@@ -198,7 +206,8 @@ dummy_cv_results = {
                         "y": 2.1,  
                         "z": 3.2
                     },
-                    "depth": 3.2
+                    "depth": 3.2,
+
                 }
             ]
         }
