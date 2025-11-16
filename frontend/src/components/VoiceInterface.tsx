@@ -3,6 +3,25 @@ import { useVoiceInterface } from '@/hooks';
 import { ChatMessage } from '@/types';
 import './VoiceInterface.css';
 
+// Simple Markdown to HTML converter for chat messages
+const formatMarkdown = (text: string): string => {
+  let formatted = text;
+  
+  // Bold: **text** -> <strong>text</strong>
+  formatted = formatted.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+  
+  // Italic: *text* -> <em>text</em>
+  formatted = formatted.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+  
+  // Code: `code` -> <code>code</code>
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // Line breaks
+  formatted = formatted.replace(/\n/g, '<br />');
+  
+  return formatted;
+};
+
 // Mic Icon Component
 const MicIcon = ({ className }: { className?: string }) => (
   <svg
@@ -286,7 +305,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </span>
               </div>
-              <div className="message-content">{message.content}</div>
+              <div 
+                className="message-content"
+                dangerouslySetInnerHTML={{ __html: formatMarkdown(message.content) }}
+              />
               
               {message.role === 'assistant' && (
                 <button

@@ -340,13 +340,22 @@ class ApiClient {
   }
 
   // Get annotation response with frame-by-frame object annotations
-  async getAnnotationResponse(_videoId?: string): Promise<ApiResponse<AnnotationResponse>> {
+  async getAnnotationResponse(sessionId: string = 'default_session'): Promise<ApiResponse<AnnotationResponse>> {
     try {
-      // For now, return mock data with dummy images
-      // In the future, this would make a real API call: `/annotations/${videoId}`
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-      
-      const mockData: AnnotationResponse = {
+      // Try to fetch real data from the backend
+      const response = await this.client.get(`/annotations/${sessionId}`);
+      return {
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (backendError: any) {
+      console.warn('Failed to fetch annotations from backend, using mock data:', backendError.message);
+      // Fallback to mock data if backend endpoint not available
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+        
+        const mockData: AnnotationResponse = {
         domain: 'construction_safety',
         total_frames: 4,
         summary: {},
@@ -460,17 +469,18 @@ class ApiClient {
         totalFrames: 4
       };
 
-      return {
-        success: true,
-        data: mockData,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
+        return {
+          success: true,
+          data: mockData,
+          timestamp: new Date().toISOString(),
+        };
+      } catch (mockError: any) {
+        return {
+          success: false,
+          error: mockError.message,
+          timestamp: new Date().toISOString(),
+        };
+      }
     }
   }
 }
