@@ -252,7 +252,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1 className="app-title">👁️ JARVIS</h1>
+        <h1 className="app-title">👁️ ThirdEye</h1>
         <p className="app-subtitle">
           AI-Powered Video Analysis smarter than your own eye.
         </p>
@@ -319,7 +319,7 @@ function App() {
         {selectedDomain !== '' && (
           <div className="voice-section">
             <h2 className="section-title">
-              {selectedDomain === 'accessibility' ? 'JARVIS' : 'JARVIS'}
+              {selectedDomain === 'accessibility' ? 'ThirdEye' : 'ThirdEye'}
             </h2>
             <VoiceInterface
               messages={messages}
